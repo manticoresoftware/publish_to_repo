@@ -22,12 +22,6 @@ inputs:
       type: string
 runs:
   using: "composite"
-  env:
-    REMOTE_SERVER: root@repo.manticoresearch.com
-    SSH_KEY: ${{ inputs.ssh_key }}
-    SSH_KEY_LOCATION: /tmp/repo.key
-    TYPE: ${{ inputs.type }}
-    DELIMITER: ${{ inputs.delimiter }}
   steps:
     - name: Download artifact
       uses: manticoresoftware/download_artifact_with_retries@main
