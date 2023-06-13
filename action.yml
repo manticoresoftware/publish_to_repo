@@ -17,11 +17,14 @@ inputs:
     artifact:
       required: true
       type: string
+    ssh_key:
+      required: true
+      type: string
 runs:
   using: "composite"
   env:
     REMOTE_SERVER: root@repo.manticoresearch.com
-    SSH_KEY: ${{ secrets.REPO_SSH_KEY }}
+    SSH_KEY: ${{ inputs.ssh_key }}
     SSH_KEY_LOCATION: /tmp/repo.key
     TYPE: ${{ inputs.type }}
     DELIMITER: ${{ inputs.delimiter }}
