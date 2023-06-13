@@ -29,7 +29,8 @@ runs:
     TYPE: ${{ inputs.type }}
     DELIMITER: ${{ inputs.delimiter }}
   steps:
-    - uses: manticoresoftware/download_artifact_with_retries@main
+    - name: Download artifact
+      uses: manticoresoftware/download_artifact_with_retries@main
       with:
         name: ${{ inputs.artifact }}
         path: .
