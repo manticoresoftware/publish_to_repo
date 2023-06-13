@@ -44,3 +44,9 @@ runs:
         rm -rf ${TEMP_DIR}
         find /tmp -type d -ctime +7 -name 'tmp.*' -exec rm -rf {} \;
         EOF
+      env:
+        REMOTE_SERVER: root@repo.manticoresearch.com
+        SSH_KEY: ${{ inputs.ssh_key }}
+        SSH_KEY_LOCATION: /tmp/repo.key
+        TYPE: ${{ inputs.type }}
+        DELIMITER: ${{ inputs.delimiter }}
