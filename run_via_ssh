@@ -1,35 +1,35 @@
 #!/usr/bin/env bash
 
-echo "${SSH_KEY}" > ${SSH_KEY_LOCATION}
-chmod 600 ${SSH_KEY_LOCATION}
+echo "${SSH_KEY}" > "${SSH_KEY_LOCATION}"
+chmod 600 "${SSH_KEY_LOCATION}"
 SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
 
 for i in {1..10}; do
-  TEMP_DIR=$(ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} <<EOF
+  TEMP_DIR=$(ssh -i "${SSH_KEY_LOCATION}" ${SSH_OPTS} ${REMOTE_SERVER} <<'EOF'
     TEMP_DIR=$(mktemp -d)
     if [ -z "$TEMP_DIR" ]; then
       echo 'Failed to create temporary directory' >&2
       exit 1
     else
       echo $TEMP_DIR
-      mkdir $TEMP_DIR/build
+      mkdir "$TEMP_DIR/build"
     fi
-  EOF
+EOF
   ) && break || sleep 1
 done
 
 for i in {1..10}; do
-  scp -i ${SSH_KEY_LOCATION} ${SSH_OPTS} -r build ${REMOTE_SERVER}:${TEMP_DIR}/ && break || sleep 1
+  scp -i "${SSH_KEY_LOCATION}" ${SSH_OPTS} -r build "${REMOTE_SERVER}:${TEMP_DIR}/" && break || sleep 1
 done
 
 for i in {1..10}; do
-  ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} <<EOF && break || sleep 1
-  cd ${TEMP_DIR}
+  ssh -i "${SSH_KEY_LOCATION}" ${SSH_OPTS} ${REMOTE_SERVER} <<EOF && break || sleep 1
+  cd "${TEMP_DIR}"
   curl -sSL https://raw.githubusercontent.com/manticoresoftware/publish_to_repo/main/upload_repo_${TYPE} > script
   chmod +x script
   ls -la
-  DISTRO="$DISTR" DIGIT_DELIMITER2="$DELIMITER" ./script
-  rm -rf ${TEMP_DIR}
+  DISTRO="${DISTR}" DIGIT_DELIMITER2="${DELIMITER}" ./script
+  rm -rf "${TEMP_DIR}"
   find /tmp -type d -ctime +7 -name 'tmp.*' -exec rm -rf {} \;
-  EOF
+EOF
 done
