@@ -30,9 +30,9 @@ set -e
 
 repo_generator() {
   # shellcheck disable=SC2068
-  echo /usr/bin/docker run --rm -i --env-file=/repomanager/docker/.env -v /repomanager/docker/worker/private_certs:/etc/ssl/private -v /repomanager/docker/worker/public_certs:/etc/ssl/public -v /mnt/storage:/var/www/repository docker_generator /generator.sh $@
+  echo /usr/bin/docker run --rm -i --env-file=/repomanager/docker/.env -v /repomanager/docker/worker/private_certs:/etc/ssl/private -v /repomanager/docker/worker/public_certs:/etc/ssl/public -v /mnt/storage:/var/www/repository docker_generator /generator.sh "$@"
   if [ -z "$DRY_RUN" ]; then
-    /usr/bin/docker run --rm -i --env-file=/repomanager/docker/.env -v /repomanager/docker/worker/private_certs:/etc/ssl/private -v /repomanager/docker/worker/public_certs:/etc/ssl/public -v /mnt/storage:/var/www/repository docker_generator /generator.sh $@
+    /usr/bin/docker run --rm -i --env-file=/repomanager/docker/.env -v /repomanager/docker/worker/private_certs:/etc/ssl/private -v /repomanager/docker/worker/public_certs:/etc/ssl/public -v /mnt/storage:/var/www/repository docker_generator /generator.sh "$@"
     [[ ! $? -eq 0 ]] && exit 1
   fi
 
