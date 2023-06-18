@@ -24,9 +24,9 @@ fi
 repo_generator() {
   # shellcheck disable=SC2068
   if [ -n "$DRY_RUN" ]; then
-    echo /usr/bin/docker run --rm -i repo-generator /generator.sh $@
+    echo /usr/bin/docker run --rm -i docker_generator /generator.sh $@
   else
-    /usr/bin/docker run --rm -i repo-generator /generator.sh $@
+    /usr/bin/docker run --rm -i docker_generator /generator.sh $@
   fi
 }
 
