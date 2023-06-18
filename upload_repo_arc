@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+# That file here is for reference; actually used the one stored on the host to avoid checkout of the whole code
+
+if [ -z "${BUILD_FOLDER+x}" ]; then
+  BUILD_FOLDER="build/"
+fi
+
+if [ -z "${DIGIT_DELIMITER1+x}" ]; then
+  DIGIT_DELIMITER1="."
+fi
+
+if [ -z "${DIGIT_DELIMITER2+x}" ]; then
+  DIGIT_DELIMITER2="-"
+fi
+
+if [ -z "${DIGIT_FIELD1+x}" ]; then
+  DIGIT_FIELD1=3
+fi
+
+if [ -z "${DIGIT_FIELD2+x}" ]; then
+  DIGIT_FIELD2=1
+fi
+
+repo_generator() {
+  # shellcheck disable=SC2068
+  if [ -n "$DRY_RUN" ]; then
+    echo /usr/bin/docker run --rm -i repo-generator /generator.sh $@
+  else
+    /usr/bin/docker run --rm -i repo-generator /generator.sh $@
+  fi
+}
+
+get_destination() {
+  if [ -z "${IS_RELEASE_DIGIT}" ]; then
+    IS_RELEASE_DIGIT="$(echo "$f" | cut -d$DIGIT_DELIMITER1 -f$DIGIT_FIELD1 | cut -d$DIGIT_DELIMITER2 -f$DIGIT_FIELD2)"
+    if [[ $((IS_RELEASE_DIGIT % 2)) -eq 0 ]]; then
+      DESTINATION="release_candidate"
+    else
+      DESTINATION="dev"
+    fi
+  fi
+}
+
+echo "Collected archives"
+ls "$BUILD_FOLDER"
+
+for f in "$BUILD_FOLDER"*.{zip,exe}; do
+  packageName="$(basename $f)"
+  if [ -f "$f" ]; then
+    get_destination
+    repo_generator --path "/repository/manticoresearch_windows/$DESTINATION/x64/" --name "$packageName" --not-index --skip-signing <"$f"
+  fi
+done
+
+for f in "$BUILD_FOLDER"*.gz; do
+  packageName="$(basename $f)"
+  if [ -f "$f" ]; then
+    get_destination
+    repo_generator --path "/repository/manticoresearch_macos/$DESTINATION/" --name "$packageName" --not-index --skip-signing <"$f"
+  fi
+done
+
+rm -rf "$BUILD_FOLDER"*.{zip,gz,exe}

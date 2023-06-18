@@ -1,0 +1,126 @@
+#!/usr/bin/env bash
+# from outside: $DISTRO = 7,8
+# That file here is for reference; actually used the one stored on the host to avoid checkout of the whole code
+
+if [ -z "${BUILD_FOLDER+x}" ]; then
+  BUILD_FOLDER="build/"
+fi
+
+if [ -z "${FILE_MASK+x}" ]; then
+  FILE_MASK="*.rpm"
+fi
+
+if [ -z "${DIGIT_DELIMITER1+x}" ]; then
+  DIGIT_DELIMITER1="."
+fi
+
+if [ -z "${DIGIT_DELIMITER2+x}" ]; then
+  DIGIT_DELIMITER2="_"
+fi
+
+if [ -z "${DIGIT_FIELD1+x}" ]; then
+  DIGIT_FIELD1=3
+fi
+
+if [ -z "${DIGIT_FIELD2+x}" ]; then
+  DIGIT_FIELD2=1
+fi
+
+echo "Uploading $DISTRO"
+echo "Collected rpm packages"
+ls "$BUILD_FOLDER"
+
+set -e
+
+repo_generator() {
+  # shellcheck disable=SC2068
+  if [ -n "$DRY_RUN" ]; then
+    echo /usr/bin/docker run -i repo-generator /generator.sh $@
+  else
+    /usr/bin/docker run -i repo-generator /generator.sh $@
+  fi
+}
+
+declare -A archs
+
+for f in $(eval echo $BUILD_FOLDER$FILE_MASK); do
+
+  echo "file $f"
+  tail=$(echo "$f" | sed 's_build/__g;s/[a-z]*-//g;')
+  VER=$(echo "$tail" | cut -d. -f1,2,3,4,5)
+  if [[ $tail == *".x86_64."* ]]; then
+    ARCH=x86_64
+  elif [[ $tail == *".aarch64."* ]]; then
+    ARCH=aarch64
+  elif [[ $tail == *".noarch."* ]]; then
+    ARCH=noarch
+  fi
+  echo "Arch: $ARCH"
+
+  # check if we really need to put icudata to the repo this time
+  # notice: it still goes to bundle archives anyway
+  if [[ $f == *icudata* ]]; then
+    if [[ $PACK_ICUDATA == 1 ]]; then
+      ARCH=noarch
+    else
+      # "None" is a nonexisting architecture. In case it's set we build bundle (zip) without building rpm
+      # more answers can give @klirichek
+      ARCH=none
+    fi
+  fi
+
+  if [ -f "$f" ]; then
+    if [ -z "${IS_RELEASE_DIGIT}" ]; then
+      IS_RELEASE_DIGIT=$(echo "$f" | cut -d$DIGIT_DELIMITER1 -f$DIGIT_FIELD1 | cut -d$DIGIT_DELIMITER2 -f$DIGIT_FIELD2)
+      if [[ $((IS_RELEASE_DIGIT % 2)) -eq 0 ]]; then
+        DESTINATION="release"
+      else
+        DESTINATION="dev"
+      fi
+    fi
+
+    packageName="$(basename "$f")"
+    if [[ $ARCH == "x86_64" ]]; then
+      repo_generator -n "$packageName" -d centos -v "$DISTRO" -t "$DESTINATION" -a x86_64 --not-index <"$f"
+      archs[x86_64]=1
+    fi
+
+    if [[ $ARCH == "aarch64" ]]; then
+      repo_generator -n "$packageName" -d centos -v "$DISTRO" -t "$DESTINATION" -a aarch64 --not-index <"$f"
+      archs[aarch64]=1
+    fi
+
+    if [[ $ARCH == "noarch" ]]; then
+      repo_generator -n "$packageName" -d centos -v "$DISTRO" -t "$DESTINATION" -a x86_64 --not-index <"$f"
+      repo_generator -n "$packageName" -d centos -v "$DISTRO" -t "$DESTINATION" -a aarch64 --not-index <"$f"
+      archs[x86_64]=1
+      archs[aarch64]=1
+    fi
+
+  fi
+done
+
+if [ -n "$MAKE_BUNDLE" ]; then
+  echo "make bundle(s) and upload them"
+
+  if [[ ${archs[x86_64]} == 1 ]]; then
+    echo make bundle x86_64
+    TGZ1=manticore-${VER}.x86_64.tgz
+    (cd build && tar cf - $(ls | grep -v -e debuginfo | grep "x86_64\|noarch") *icudata*rpm | gzip -9 -f) >"$TGZ1"
+    repo_generator -p "/repository/manticoresearch/$DESTINATION/centos/$DISTRO/" -n "$TGZ1" --not-index --skip-signing <"$TGZ1"
+  fi
+
+  if [[ ${archs[aarch64]} == 1 ]]; then
+    echo make bundle aarch64
+    TGZ2=manticore-${VER}.aarch64.tgz
+    (cd build && tar cf - $(ls | grep -v -e debuginfo | grep "aarch64\|noarch") *icudata*rpm | gzip -9 -f) >"$TGZ2"
+    repo_generator -p "/repository/manticoresearch/$DESTINATION/centos/$DISTRO/" -n "$TGZ2" --not-index --skip-signing <"$TGZ2"
+  fi
+fi
+
+# no need to make bundle as we deploy one single package
+for arch in "${!archs[@]}"; do
+  repo_generator -d centos -v "$DISTRO" --architecture "$arch" --target "$DESTINATION" --only-index
+done
+
+rm -rf ${BUILD_FOLDER}*.rpm

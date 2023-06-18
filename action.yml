@@ -38,7 +38,7 @@ runs:
         scp -i ${SSH_KEY_LOCATION} ${SSH_OPTS} -r build ${REMOTE_SERVER}:${TEMP_DIR}/
         ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} <<EOF
         cd ${TEMP_DIR}
-        curl -sSL https://raw.githubusercontent.com/manticoresoftware/repo_scripts/main/upload_repo_${TYPE} > script
+        curl -sSL https://raw.githubusercontent.com/manticoresoftware/publish_to_repo/main/upload_repo_${TYPE} > script
         chmod +x script
         ls -la
         DISTRO="${{ inputs.distr }}" DIGIT_DELIMITER2="${{ inputs.delimiter }}" ./script
