@@ -72,17 +72,17 @@ for f in "$BUILD_FOLDER"*deb; do
 
     if [[ $ARCH == "amd64" ]]; then
       archs[amd]=1
-      repo_generator --distro "$DISTRO" --architecture amd --target "$TARGET" --name "$packageName" --not-index <"$f"
+      repo_generator --distro "$DISTRO" --architecture amd --target "$TARGET" --name "$packageName" --not-index "<$f"
     fi
 
     if [[ $ARCH == "arm64" ]]; then
       archs[arm]=1
-      repo_generator --distro "$DISTRO" --architecture arm --target "$TARGET" --name "$packageName" --not-index <"$f"
+      repo_generator --distro "$DISTRO" --architecture arm --target "$TARGET" --name "$packageName" --not-index "<$f"
     fi
 
     if [[ $ARCH == "all" ]]; then
-      repo_generator --distro "$DISTRO" --architecture amd --target "$TARGET" --name "$packageName" --not-index <"$f"
-      repo_generator --distro "$DISTRO" --architecture arm --target "$TARGET" --name "$packageName" --not-index <"$f"
+      repo_generator --distro "$DISTRO" --architecture amd --target "$TARGET" --name "$packageName" --not-index "<$f"
+      repo_generator --distro "$DISTRO" --architecture arm --target "$TARGET" --name "$packageName" --not-index "<$f"
       archs[amd]=1
       archs[arm]=1
     fi
