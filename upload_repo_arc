@@ -26,8 +26,8 @@ repo_generator() {
   if [ -n "$DRY_RUN" ]; then
     echo /usr/bin/docker run --rm -i --env-file=/repomanager/docker/.env -v /repomanager/docker/worker/private_certs:/etc/ssl/private -v /repomanager/docker/worker/public_certs:/etc/ssl/public docker_generator /generator.sh $@
   else
-    /usr/bin/docker run --rm -i docker_generator /generator.sh $@
     /usr/bin/docker run --rm -i --env-file=/repomanager/docker/.env -v /repomanager/docker/worker/private_certs:/etc/ssl/private -v /repomanager/docker/worker/public_certs:/etc/ssl/public docker_generator /generator.sh $@
+    [[ ! $? -eq 0 ]] && exit 1
   fi
 }
 
@@ -48,6 +48,7 @@ ls "$BUILD_FOLDER"
 for f in "$BUILD_FOLDER"*.{zip,exe}; do
   packageName="$(basename $f)"
   if [ -f "$f" ]; then
+    echo "Processing $f"
     get_destination
     repo_generator --path "/repository/manticoresearch_windows/$DESTINATION/x64/" --name "$packageName" --not-index --skip-signing <"$f"
   fi
@@ -56,6 +57,7 @@ done
 for f in "$BUILD_FOLDER"*.gz; do
   packageName="$(basename $f)"
   if [ -f "$f" ]; then
+    echo "Processing $f"
     get_destination
     repo_generator --path "/repository/manticoresearch_macos/$DESTINATION/" --name "$packageName" --not-index --skip-signing <"$f"
   fi
