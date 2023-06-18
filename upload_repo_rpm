@@ -34,7 +34,7 @@ set -e
 
 repo_generator() {
   # shellcheck disable=SC2068
-  command="/usr/bin/docker run --rm -i --env-file=/repomanager/docker/.env -v /repomanager/docker/worker/private_certs:/etc/ssl/private -v /repomanager/docker/worker/public_certs:/etc/ssl/public -v /mnt/storage:/var/www/repository docker_generator /generator.sh $@"
+  command="/usr/bin/docker run --rm -i --env-file=/repomanager/docker/.env -v /repomanager/docker/worker/private_certs:/etc/ssl/private -v /repomanager/docker/worker/public_certs:/etc/ssl/public -v /mnt/storage:/repository docker_generator /generator.sh $@"
   echo $command
   if [ -z "$DRY_RUN" ]; then
     eval $command
