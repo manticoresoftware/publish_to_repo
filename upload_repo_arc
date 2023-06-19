@@ -27,7 +27,7 @@ repo_generator() {
   echo $command
   if [ -z "$DRY_RUN" ]; then
     eval $command
-    [[ ! $? -eq 0 ]] && echo "ERROR: command failed" && exit 1
+    if [[ ! $? -eq 0 ]]; then echo "ERROR: command failed"; exit 1; fi
   fi
 }
 
