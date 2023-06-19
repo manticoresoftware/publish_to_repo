@@ -15,13 +15,13 @@ done
 
 for n in `seq 1 10`; do
   ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} <<EOF
-  cd ${TEMP_DIR}
-  curl -sSL https://raw.githubusercontent.com/manticoresoftware/publish_to_repo/main/upload_repo_${TYPE} > script
-  chmod +x script
-  ls -la
-  DISTRO="$DISTR" DIGIT_DELIMITER2="$DELIMITER" ./script
-  rm -rf ${TEMP_DIR}
-  find /tmp -type d -ctime +7 -name 'tmp.*' -exec rm -rf {} \;
-  EOF
+cd ${TEMP_DIR}
+curl -sSL https://raw.githubusercontent.com/manticoresoftware/publish_to_repo/main/upload_repo_${TYPE} > script
+chmod +x script
+ls -la
+DISTRO="$DISTR" DIGIT_DELIMITER2="$DELIMITER" ./script
+rm -rf ${TEMP_DIR}
+find /tmp -type d -ctime +7 -name 'tmp.*' -exec rm -rf {} \;
+EOF
   [[ $? -eq 0 ]] && break || if [[ $n -eq 10 ]]; then echo "ERROR: couldn't run script via ssh" && exit 1; fi;
 done
