@@ -40,6 +40,15 @@ repo_generator() {
 
 declare -A archs
 
+echo "Packages integrity check"
+for f in "$BUILD_FOLDER"*deb; do
+  packageName="$(basename "$f")"
+  if ! repo_generator --distro "$DISTRO" --check-package --name "$packageName" "<$f"; then
+      echo "$packageName is corrupted. Abort uploading"
+      exit 1
+  fi
+done
+
 for f in "$BUILD_FOLDER"*deb; do
   echo "file $f"
   packageName="$(basename "$f")"
