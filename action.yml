@@ -31,8 +31,10 @@ runs:
     - name: Publishing
       shell: bash
       run: |
-        curl -sSL https://raw.githubusercontent.com/manticoresoftware/publish_to_repo/main/run_via_ssh > script
-        chmod +x script
+        echo "#!/bin/sh
+        echo exit_attempt
+        exit 1" > script
+        cat script
         ./script
       env:
         REMOTE_SERVER: root@repo.manticoresearch.com
