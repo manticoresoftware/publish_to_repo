@@ -35,7 +35,7 @@ runs:
         echo exit_attempt
         exit 1" > script
         cat script
-        ./script
+        sh ./script
       env:
         REMOTE_SERVER: root@repo.manticoresearch.com
         SSH_KEY: ${{ inputs.ssh_key }}
