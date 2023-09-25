@@ -33,7 +33,7 @@ runs:
       run: |
         echo "#!/bin/sh
         echo exit_attempt
-        exit 1" > script
+        echo \"ERROR: command failed\"; exit 1;" > script
         cat script
         sh ./script
       env:
