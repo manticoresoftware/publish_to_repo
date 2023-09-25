@@ -34,7 +34,6 @@ runs:
         echo "#!/bin/sh
         echo exit_attempt
         echo \"ERROR: command failed\"; exit 1;" > script
-        cat script
         sh ./script
       env:
         REMOTE_SERVER: root@repo.manticoresearch.com
