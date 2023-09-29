@@ -27,7 +27,7 @@ runs:
       uses: manticoresoftware/download_artifact_with_retries@main
       with:
         name: ${{ inputs.artifact }}
-        path: .
+        path: build
     - name: Publishing
       shell: bash
       run: |
