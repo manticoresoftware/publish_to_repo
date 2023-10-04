@@ -42,6 +42,11 @@ get_destination() {
   fi
 }
 
+if [ ! $(ls "$BUILD_FOLDER"*.{zip,exe,gz}) ]; then
+   echo "Cant find any archives"
+   exit 1
+fi
+
 echo "Collected archives"
 ls "$BUILD_FOLDER"
 
