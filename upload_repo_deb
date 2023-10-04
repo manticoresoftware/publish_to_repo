@@ -38,6 +38,11 @@ repo_generator() {
   fi
 }
 
+if [ ! $(ls "$BUILD_FOLDER"*deb) ]; then
+   echo "Cant find any DEB packages"
+   exit 1
+fi
+
 declare -A archs
 
 echo "Packages integrity check"

@@ -42,6 +42,12 @@ repo_generator() {
   fi
 }
 
+
+if [ ! $(eval ls "$BUILD_FOLDER$FILE_MASK") ]; then
+   echo "Cant find any RPM packages"
+   exit 1
+fi
+
 declare -A archs
 
 
