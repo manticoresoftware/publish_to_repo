@@ -52,7 +52,7 @@ declare -A archs
 
 
 echo "Packages integrity check"
-for f in $(eval echo $BUILD_FOLDER$FILE_MASK); do
+find "$BUILD_FOLDER" -type f \( -name "$FILE_MASK" \) -print0 | while IFS= read -r -d '' f; do
   packageName="$(basename "$f")"
   if ! repo_generator -n "$packageName" -d centos --check-package "<$f"; then
       echo "$packageName is corrupted. Abort uploading"
@@ -60,8 +60,7 @@ for f in $(eval echo $BUILD_FOLDER$FILE_MASK); do
   fi
 done
 
-for f in $(eval echo $BUILD_FOLDER$FILE_MASK); do
-
+find "$BUILD_FOLDER" -type f \( -name "$FILE_MASK" \) -print0 | while IFS= read -r -d '' f; do
   echo "file $f"
   tail=$(echo "$f" | sed 's_build/__g;s/[a-z]*-//g;')
   VER=$(echo "$tail" | cut -d. -f1,2,3,4,5)
@@ -141,4 +140,4 @@ for arch in "${!archs[@]}"; do
   repo_generator -d centos -v "$DISTRO" --architecture "$arch" --target "$DESTINATION" --only-index
 done
 
-rm -rf ${BUILD_FOLDER}*.rpm
+rm -rf ${BUILD_FOLDER}${FILE_MASK}

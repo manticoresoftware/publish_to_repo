@@ -31,9 +31,9 @@ set -e
 repo_generator() {
   # shellcheck disable=SC2068
   command="/usr/bin/docker exec -i repo-generator /generator.sh $@"
-  echo $command
+  echo "$command"
   if [ -z "$DRY_RUN" ]; then
-    eval $command
+    eval "$command"
     if [[ ! $? -eq 0 ]]; then echo "ERROR: command failed"; exit 1; fi
   fi
 }
@@ -46,7 +46,7 @@ fi
 declare -A archs
 
 echo "Packages integrity check"
-for f in "$BUILD_FOLDER"*deb; do
+find "$BUILD_FOLDER" -type f \( -name "*.deb" \) -print0 | while IFS= read -r -d '' f; do
   packageName="$(basename "$f")"
   if ! repo_generator --distro "$DISTRO" --check-package --name "$packageName" "<$f"; then
       echo "$packageName is corrupted. Abort uploading"
@@ -54,7 +54,7 @@ for f in "$BUILD_FOLDER"*deb; do
   fi
 done
 
-for f in "$BUILD_FOLDER"*deb; do
+find "$BUILD_FOLDER" -type f \( -name "*.deb" \) -print0 | while IFS= read -r -d '' f; do
   echo "file $f"
   packageName="$(basename "$f")"
   VER=$(echo "$f" | cut -d_ -f2)
