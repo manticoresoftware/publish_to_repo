@@ -101,6 +101,8 @@ find "$BUILD_FOLDER" -type f \( -name "*.deb" \) -print0 | while IFS= read -r -d
   fi
 done
 
+echo "Finished putting packages"
+
 if [ -n "$MAKE_BUNDLE" ]; then
   echo "make bundle(s) and upload them"
 
