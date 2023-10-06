@@ -45,11 +45,6 @@ get_destination() {
 echo "Contents of ./$BUILD_FOLDER:"
 find "$BUILD_FOLDER"
 
-if [ ! $(ls "$BUILD_FOLDER"*.{zip,exe,gz}) ]; then
-   echo "Can't find any archives or executables"
-   exit 1
-fi
-
 find "$BUILD_FOLDER" -type f \( -name "*.zip" -o -name "*.exe" \) -print0 | while IFS= read -r -d '' f; do
   packageName="$(basename "$f")"
   if [ -f "$f" ]; then
