@@ -44,7 +44,7 @@ find "$BUILD_FOLDER"
 declare -A archs
 
 echo "Packages integrity check"
-find "$BUILD_FOLDER" -type f \( -name "*.deb" \) -print0 | while IFS= read -r -d '' f; do
+find "$BUILD_FOLDER" -type f \( -name "*deb" \) -print0 | while IFS= read -r -d '' f; do
   packageName="$(basename "$f")"
   if ! repo_generator --distro "$DISTRO" --check-package --name "$packageName" "<$f"; then
       echo "$packageName is corrupted. Abort uploading"
@@ -52,7 +52,7 @@ find "$BUILD_FOLDER" -type f \( -name "*.deb" \) -print0 | while IFS= read -r -d
   fi
 done
 
-find "$BUILD_FOLDER" -type f \( -name "*.deb" \) -print0 | while IFS= read -r -d '' f; do
+find "$BUILD_FOLDER" -type f \( -name "*deb" \) -print0 | while IFS= read -r -d '' f; do
   echo "file $f"
   packageName="$(basename "$f")"
   VER=$(echo "$f" | cut -d_ -f2)
@@ -121,6 +121,7 @@ if [ -n "$MAKE_BUNDLE" ]; then
   fi
 fi
 
+echo "archs: ${archs[*]}"
 echo "Indexing"
 for arch in "${!archs[@]}"; do
   echo "Indexing $DISTRO $arch $TARGET"
