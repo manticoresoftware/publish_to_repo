@@ -38,10 +38,8 @@ repo_generator() {
   fi
 }
 
-if [ ! $(ls "$BUILD_FOLDER"*deb) ]; then
-   echo "Cant find any DEB packages"
-   exit 1
-fi
+echo "Contents of ./$BUILD_FOLDER:"
+find "$BUILD_FOLDER"
 
 declare -A archs
 
