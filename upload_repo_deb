@@ -120,6 +120,7 @@ if [ -n "$MAKE_BUNDLE" ]; then
 fi
 
 for arch in "${!archs[@]}"; do
+  echo "Indexing $DISTRO $arch $TARGET"
   repo_generator --distro "$DISTRO" --architecture "$arch" --target "$TARGET" --only-index
 done
 
