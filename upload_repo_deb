@@ -44,7 +44,7 @@ find "$BUILD_FOLDER"
 declare -A archs
 
 echo "Packages integrity check"
-find "$BUILD_FOLDER" -type f \( -name "*deb" \) -print0 | while IFS= read -r -d '' f; do
+for f in `find "$BUILD_FOLDER" -type f \( -name "*deb" \)`; do
   packageName="$(basename "$f")"
   if ! repo_generator --distro "$DISTRO" --check-package --name "$packageName" "<$f"; then
       echo "$packageName is corrupted. Abort uploading"
@@ -52,7 +52,7 @@ find "$BUILD_FOLDER" -type f \( -name "*deb" \) -print0 | while IFS= read -r -d 
   fi
 done
 
-find "$BUILD_FOLDER" -type f \( -name "*deb" \) -print0 | while IFS= read -r -d '' f; do
+for f in `find "$BUILD_FOLDER" -type f \( -name "*deb" \)`; do
   echo "file $f"
   packageName="$(basename "$f")"
   VER=$(echo "$f" | cut -d_ -f2)
@@ -85,13 +85,11 @@ find "$BUILD_FOLDER" -type f \( -name "*deb" \) -print0 | while IFS= read -r -d 
     if [[ $ARCH == "amd64" ]]; then
       archs[amd]=1
       repo_generator --distro "$DISTRO" --architecture amd --target "$TARGET" --name "$packageName" --not-index "<$f"
-      echo "archs: ${archs[*]}"
     fi
 
     if [[ $ARCH == "arm64" ]]; then
       archs[arm]=1
       repo_generator --distro "$DISTRO" --architecture arm --target "$TARGET" --name "$packageName" --not-index "<$f"
-      echo "archs: ${archs[*]}"
     fi
 
     if [[ $ARCH == "all" ]]; then
@@ -99,7 +97,6 @@ find "$BUILD_FOLDER" -type f \( -name "*deb" \) -print0 | while IFS= read -r -d 
       repo_generator --distro "$DISTRO" --architecture arm --target "$TARGET" --name "$packageName" --not-index "<$f"
       archs[amd]=1
       archs[arm]=1
-      echo "archs: ${archs[*]}"
     fi
   fi
 done
@@ -124,7 +121,6 @@ if [ -n "$MAKE_BUNDLE" ]; then
   fi
 fi
 
-echo "archs: ${archs[*]}"
 echo "Indexing"
 for arch in "${!archs[@]}"; do
   echo "Indexing $DISTRO $arch $TARGET"
