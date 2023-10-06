@@ -45,7 +45,7 @@ get_destination() {
 echo "Contents of ./$BUILD_FOLDER:"
 find "$BUILD_FOLDER"
 
-find "$BUILD_FOLDER" -type f \( -name "*.zip" -o -name "*.exe" \) -print0 | while IFS= read -r -d '' f; do
+for f in `find "$BUILD_FOLDER" -type f \( -name "*.zip" -o -name "*.exe" \)`; do
   packageName="$(basename "$f")"
   if [ -f "$f" ]; then
     echo "Processing $f"
@@ -54,7 +54,7 @@ find "$BUILD_FOLDER" -type f \( -name "*.zip" -o -name "*.exe" \) -print0 | whil
   fi
 done
 
-find "$BUILD_FOLDER" -type f \( -name "*.gz" \) -print0 | while IFS= read -r -d '' f; do
+for f in `find "$BUILD_FOLDER" -type f \( -name "*.gz" \)`; do
   packageName="$(basename "$f")"
   if [ -f "$f" ]; then
     echo "Processing $f"
@@ -63,4 +63,5 @@ find "$BUILD_FOLDER" -type f \( -name "*.gz" \) -print0 | while IFS= read -r -d 
   fi
 done
 
+echo "Cleanup"
 rm -rf "$BUILD_FOLDER"*.{zip,gz,exe}
