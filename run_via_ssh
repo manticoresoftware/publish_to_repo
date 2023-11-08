@@ -21,7 +21,7 @@ chmod +x script
 ls -la
 DISTRO="${DISTR}" DIGIT_DELIMITER2="${DELIMITER}" ./script
 rm -rf ${TEMP_DIR}
-find /tmp -type d -ctime +7 -name 'tmp.*' -exec rm -rf {} \;
+find /tmp -type d -ctime +2 -name 'tmp.*' -exec rm -rf {} \;
 EOF
   [[ $? -eq 0 ]] && break || if [[ $n -eq 10 ]]; then echo "ERROR: couldn't run script via ssh" && exit 1; fi;
 done
