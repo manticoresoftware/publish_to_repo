@@ -4,9 +4,11 @@ echo "${SSH_KEY}" > ${SSH_KEY_LOCATION}
 chmod 600 ${SSH_KEY_LOCATION}
 SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
 for n in `seq 1 10`; do
-  TEMP_DIR=$(ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} "TEMP_DIR=\$(mktemp -d); if [ -z \"\$TEMP_DIR\" ]; then echo 'Failed to create temporary directory '\$TEMP_DIR >&2; exit 1; else echo 'Created temporary directory '\$TEMP_DIR; mkdir \$TEMP_DIR/build; fi")
+  TEMP_DIR=$(ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} "TEMP_DIR=\$(mktemp -d); if [ -z \"\$TEMP_DIR\" ]; then echo 'Failed to create temporary directory '\$TEMP_DIR >&2; exit 1; else echo \$TEMP_DIR; mkdir \$TEMP_DIR/build; fi")
   [[ $? -eq 0 ]] && break || if [[ $n -eq 10 ]]; then echo "ERROR: couldn't set TEMP_DIR" && exit 1; fi;
 done
+
+echo "Temporary directory is $TEMP_DIR"
 
 for n in `seq 1 10`; do
   scp -i ${SSH_KEY_LOCATION} ${SSH_OPTS} -r build ${REMOTE_SERVER}:${TEMP_DIR}/
