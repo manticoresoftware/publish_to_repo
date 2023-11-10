@@ -20,7 +20,7 @@ echo "Copied package to $TEMP_DIR"
 for n in `seq 1 10`; do
   ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} <<EOF
 cd ${TEMP_DIR}
-curl -sSL https://raw.githubusercontent.com/manticoresoftware/publish_to_repo/main/upload_repo_${TYPE} > script
+curl -sSL "https://raw.githubusercontent.com/manticoresoftware/publish_to_repo/main/upload_repo_${TYPE}" > script
 chmod +x script
 ls -la
 DISTRO="${DISTR}" DIGIT_DELIMITER2="${DELIMITER}" ./script
