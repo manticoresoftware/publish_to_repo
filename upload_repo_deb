@@ -129,3 +129,4 @@ done
 
 echo "Cleanup"
 rm -rf "$BUILD_FOLDER"*deb
+echo "Cleanup complete"
