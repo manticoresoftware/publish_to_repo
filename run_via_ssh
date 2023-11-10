@@ -24,7 +24,9 @@ curl -sSL https://raw.githubusercontent.com/manticoresoftware/publish_to_repo/ma
 chmod +x script
 ls -la
 DISTRO="${DISTR}" DIGIT_DELIMITER2="${DELIMITER}" ./script
+echo "Removing ${TEMP_DIR}"
 rm -rf ${TEMP_DIR}
+echo "Cleaning up old temp dirs in /tmp/"
 find /tmp -type d -ctime +2 -name 'tmp.*' -exec rm -rf {} \;
 EOF
   [[ $? -eq 0 ]] && break || if [[ $n -eq 10 ]]; then echo "ERROR: couldn't run script via ssh" && exit 1; fi;
