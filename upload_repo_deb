@@ -128,5 +128,5 @@ for arch in "${!archs[@]}"; do
 done
 
 echo "Cleanup"
-rm -rf "$BUILD_FOLDER"*deb
+rm -rf "$BUILD_FOLDER"*deb || echo "Failed to cleanup"
 echo "Cleanup complete"
