@@ -34,10 +34,10 @@ repo_generator() {
   command="/usr/bin/docker exec -i repo-generator echo ----------- $@ ---------------"
 
   echo "Command to run: $command"
-#  if [ -z "$DRY_RUN" ]; then
-#    eval "$command"
-#    if [[ ! $? -eq 0 ]]; then echo "ERROR: command failed"; exit 1; fi
-#  fi
+  if [ -z "$DRY_RUN" ]; then
+    eval "$command"
+    if [[ ! $? -eq 0 ]]; then echo "ERROR: command failed"; exit 1; fi
+  fi
 }
 
 echo "Contents of ./$BUILD_FOLDER:"
@@ -132,11 +132,11 @@ fi
 echo "Contents of ./$BUILD_FOLDER:"
 find "$BUILD_FOLDER"
 
-echo "Indexing"
-for arch in "${!archs[@]}"; do
-  echo "Indexing $DISTRO $arch $TARGET"
-  repo_generator --distro "$DISTRO" --architecture "$arch" --target "$TARGET" --only-index
-done
+#echo "Indexing"
+#for arch in "${!archs[@]}"; do
+#  echo "Indexing $DISTRO $arch $TARGET"
+#  repo_generator --distro "$DISTRO" --architecture "$arch" --target "$TARGET" --only-index
+#done
 
 echo "Contents of ./$BUILD_FOLDER:"
 find "$BUILD_FOLDER"
