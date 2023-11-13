@@ -54,6 +54,9 @@ for f in `find "$BUILD_FOLDER" -type f \( -name "*deb" \)`; do
   fi
 done
 
+echo "Contents of ./$BUILD_FOLDER:"
+find "$BUILD_FOLDER"
+
 for f in `find "$BUILD_FOLDER" -type f \( -name "*deb" \)`; do
   echo "file $f"
   packageName="$(basename "$f")"
@@ -103,6 +106,9 @@ for f in `find "$BUILD_FOLDER" -type f \( -name "*deb" \)`; do
   fi
 done
 
+echo "Contents of ./$BUILD_FOLDER:"
+find "$BUILD_FOLDER"
+
 echo "Finished putting packages"
 
 if [ -n "$MAKE_BUNDLE" ]; then
@@ -123,11 +129,17 @@ if [ -n "$MAKE_BUNDLE" ]; then
   fi
 fi
 
+echo "Contents of ./$BUILD_FOLDER:"
+find "$BUILD_FOLDER"
+
 echo "Indexing"
 for arch in "${!archs[@]}"; do
   echo "Indexing $DISTRO $arch $TARGET"
   repo_generator --distro "$DISTRO" --architecture "$arch" --target "$TARGET" --only-index
 done
+
+echo "Contents of ./$BUILD_FOLDER:"
+find "$BUILD_FOLDER"
 
 echo "Cleanup"
 echo "BUILD_FOLDER is $BUILD_FOLDER"
