@@ -31,12 +31,11 @@ set -e
 repo_generator() {
   # shellcheck disable=SC2068
 #  command="/usr/bin/docker exec -i repo-generator /generator.sh $@"
-  command="/usr/bin/docker exec -i repo-generator /usr/bin/bash -c 'echo ----------- $@ ---------------'"
+  command="/usr/bin/docker exec -i repo-generator echo ----------- $@ ---------------"
 
   echo "Command to run: $command"
   if [ -z "$DRY_RUN" ]; then
-#    eval "$command"
-    $("$command")
+    eval "$command"
     if [[ ! $? -eq 0 ]]; then echo "ERROR: command failed"; exit 1; fi
   fi
 }
