@@ -132,11 +132,11 @@ fi
 echo "Contents of ./$BUILD_FOLDER:"
 find "$BUILD_FOLDER"
 
-#echo "Indexing"
-#for arch in "${!archs[@]}"; do
-#  echo "Indexing $DISTRO $arch $TARGET"
-#  repo_generator --distro "$DISTRO" --architecture "$arch" --target "$TARGET" --only-index
-#done
+echo "Indexing"
+for arch in "${!archs[@]}"; do
+  echo "Indexing $DISTRO $arch $TARGET"
+  repo_generator --distro "$DISTRO" --architecture "$arch" --target "$TARGET" --only-index
+done
 
 echo "Contents of ./$BUILD_FOLDER:"
 find "$BUILD_FOLDER"
