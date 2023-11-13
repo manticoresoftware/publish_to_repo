@@ -30,7 +30,9 @@ set -e
 
 repo_generator() {
   # shellcheck disable=SC2068
-  command="/usr/bin/docker exec -i repo-generator /generator.sh $@"
+#  command="/usr/bin/docker exec -i repo-generator /generator.sh $@"
+  command="/usr/bin/docker exec -i repo-generator echo $@"
+
   echo "$command"
 #  if [ -z "$DRY_RUN" ]; then
 #    eval "$command"
