@@ -24,6 +24,7 @@ curl -sSL "https://raw.githubusercontent.com/sanikolaev/publish_to_repo/main/upl
 chmod +x script
 ls -la
 cat script
+echo "DISTRO="${DISTR}" DIGIT_DELIMITER2="${DELIMITER}" ./script"
 DISTRO="${DISTR}" DIGIT_DELIMITER2="${DELIMITER}" ./script
 echo "Script finished with exit code $?"
 echo "Removing ${TEMP_DIR}"
