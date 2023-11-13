@@ -45,14 +45,14 @@ find "$BUILD_FOLDER"
 
 declare -A archs
 
-#echo "Packages integrity check"
-#for f in `find "$BUILD_FOLDER" -type f \( -name "*deb" \)`; do
-#  packageName="$(basename "$f")"
-#  if ! repo_generator --distro "$DISTRO" --check-package --name "$packageName" "<$f"; then
-#      echo "$packageName is corrupted. Abort uploading"
-#      exit 1
-#  fi
-#done
+echo "Packages integrity check"
+for f in `find "$BUILD_FOLDER" -type f \( -name "*deb" \)`; do
+  packageName="$(basename "$f")"
+  if ! repo_generator --distro "$DISTRO" --check-package --name "$packageName" "<$f"; then
+      echo "$packageName is corrupted. Abort uploading"
+      exit 1
+  fi
+done
 
 #echo "Contents of ./$BUILD_FOLDER:"
 #find "$BUILD_FOLDER"
