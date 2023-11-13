@@ -34,10 +34,10 @@ repo_generator() {
   command="/usr/bin/docker exec -i repo-generator echo ----------- $@ ---------------"
 
   echo "Command to run: $command"
-#  if [ -z "$DRY_RUN" ]; then
-#    eval "$command"
-#    if [[ ! $? -eq 0 ]]; then echo "ERROR: command failed"; exit 1; fi
-#  fi
+  if [ -z "$DRY_RUN" ]; then
+    eval "$command"
+    if [[ ! $? -eq 0 ]]; then echo "ERROR: command failed"; exit 1; fi
+  fi
 }
 
 echo "Contents of ./$BUILD_FOLDER:"
