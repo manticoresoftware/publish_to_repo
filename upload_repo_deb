@@ -54,57 +54,57 @@ for f in `find "$BUILD_FOLDER" -type f \( -name "*deb" \)`; do
   fi
 done
 
-#echo "Contents of ./$BUILD_FOLDER:"
-#find "$BUILD_FOLDER"
+echo "Contents of ./$BUILD_FOLDER:"
+find "$BUILD_FOLDER"
 
-#for f in `find "$BUILD_FOLDER" -type f \( -name "*deb" \)`; do
-#  echo "file $f"
-#  packageName="$(basename "$f")"
-#  VER=$(echo "$f" | cut -d_ -f2)
-#  ARCH=$(echo "$f" | cut -d_ -f3 | cut -d. -f1)
-#  echo "Arch: $ARCH"
-#
-#  if [ -f "$f" ]; then
-#    if [ -z "$IS_RELEASE_DIGIT" ]; then
-#      IS_RELEASE_DIGIT=$(echo "$f" | cut -d$DIGIT_DELIMITER1 -f$DIGIT_FIELD1 | cut -d$DIGIT_DELIMITER2 -f$DIGIT_FIELD2)
-#      if [[ $((IS_RELEASE_DIGIT % 2)) -ne 0 ]]; then
-#        TARGET="dev"
-#        SUFFIX="_dev"
-#      else
-#        TARGET="release"
-#        SUFFIX=""
-#      fi
-#    fi
-#
-#    # check if we really need to put icudata to the repo this time
-#    # notice: it still goes to bundle archives anyway
-#    if [[ $f == *icudata* ]]; then
-#      if [[ $PACK_ICUDATA == 1 ]]; then
-#        ARCH=all
-#      else
-#        # dirty hack to skip this iteration
-#        ARCH=none
-#      fi
-#    fi
-#
-#    if [[ $ARCH == "amd64" ]]; then
-#      archs[amd]=1
-#      repo_generator --distro "$DISTRO" --architecture amd --target "$TARGET" --name "$packageName" --not-index "<$f"
-#    fi
-#
-#    if [[ $ARCH == "arm64" ]]; then
-#      archs[arm]=1
-#      repo_generator --distro "$DISTRO" --architecture arm --target "$TARGET" --name "$packageName" --not-index "<$f"
-#    fi
-#
-#    if [[ $ARCH == "all" ]]; then
-#      repo_generator --distro "$DISTRO" --architecture amd --target "$TARGET" --name "$packageName" --not-index "<$f"
-#      repo_generator --distro "$DISTRO" --architecture arm --target "$TARGET" --name "$packageName" --not-index "<$f"
-#      archs[amd]=1
-#      archs[arm]=1
-#    fi
-#  fi
-#done
+for f in `find "$BUILD_FOLDER" -type f \( -name "*deb" \)`; do
+  echo "file $f"
+  packageName="$(basename "$f")"
+  VER=$(echo "$f" | cut -d_ -f2)
+  ARCH=$(echo "$f" | cut -d_ -f3 | cut -d. -f1)
+  echo "Arch: $ARCH"
+
+  if [ -f "$f" ]; then
+    if [ -z "$IS_RELEASE_DIGIT" ]; then
+      IS_RELEASE_DIGIT=$(echo "$f" | cut -d$DIGIT_DELIMITER1 -f$DIGIT_FIELD1 | cut -d$DIGIT_DELIMITER2 -f$DIGIT_FIELD2)
+      if [[ $((IS_RELEASE_DIGIT % 2)) -ne 0 ]]; then
+        TARGET="dev"
+        SUFFIX="_dev"
+      else
+        TARGET="release"
+        SUFFIX=""
+      fi
+    fi
+
+    # check if we really need to put icudata to the repo this time
+    # notice: it still goes to bundle archives anyway
+    if [[ $f == *icudata* ]]; then
+      if [[ $PACK_ICUDATA == 1 ]]; then
+        ARCH=all
+      else
+        # dirty hack to skip this iteration
+        ARCH=none
+      fi
+    fi
+
+    if [[ $ARCH == "amd64" ]]; then
+      archs[amd]=1
+      repo_generator --distro "$DISTRO" --architecture amd --target "$TARGET" --name "$packageName" --not-index "<$f"
+    fi
+
+    if [[ $ARCH == "arm64" ]]; then
+      archs[arm]=1
+      repo_generator --distro "$DISTRO" --architecture arm --target "$TARGET" --name "$packageName" --not-index "<$f"
+    fi
+
+    if [[ $ARCH == "all" ]]; then
+      repo_generator --distro "$DISTRO" --architecture amd --target "$TARGET" --name "$packageName" --not-index "<$f"
+      repo_generator --distro "$DISTRO" --architecture arm --target "$TARGET" --name "$packageName" --not-index "<$f"
+      archs[amd]=1
+      archs[arm]=1
+    fi
+  fi
+done
 
 #echo "Contents of ./$BUILD_FOLDER:"
 #find "$BUILD_FOLDER"
