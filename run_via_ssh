@@ -26,7 +26,7 @@ ls -la
 env
 echo "Temporary directory is $TEMP_DIR"
 echo "DISTRO="${DISTR}" DIGIT_DELIMITER2="${DELIMITER}" ./script"
-exit 1
+#exit 1
 DISTRO="${DISTR}" DIGIT_DELIMITER2="${DELIMITER}" ./script
 echo "Script finished with exit code $?"
 echo "Removing ${TEMP_DIR}"
