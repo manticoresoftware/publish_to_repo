@@ -18,6 +18,8 @@ done
 echo "Copied package to $TEMP_DIR"
 
 echo 123
+echo 234 > script
+cat script
 cat <<EOF > script
 abc
 EOF
