@@ -18,7 +18,7 @@ done
 echo "Copied package to $TEMP_DIR"
 
 for n in `seq 1 10`; do
-  ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} <<EOF
+  echo <<EOF
 cd ${TEMP_DIR}
 curl -sSL "https://raw.githubusercontent.com/sanikolaev/publish_to_repo/main/upload_repo_${TYPE}" > script
 chmod +x script
@@ -33,6 +33,11 @@ echo "Removing ${TEMP_DIR}"
 rm -rf ${TEMP_DIR}
 echo "Cleaning up old temp dirs in /tmp/"
 find /tmp -type d -ctime +2 -name 'tmp.*' -exec rm -rf {} \;
-EOF
+EOF > script
+  cat script
+  chmod +x script
+  ls -la script
+  scp -v -i ${SSH_KEY_LOCATION} ${SSH_OPTS} script ${REMOTE_SERVER}:/tmp/script
+  ssh -v -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} /tmp/script
   [[ $? -eq 0 ]] && break || if [[ $n -eq 10 ]]; then echo "ERROR: couldn't run script via ssh" && exit 1; fi;
 done
