@@ -24,6 +24,7 @@ curl -sSL "https://raw.githubusercontent.com/sanikolaev/publish_to_repo/main/upl
 chmod +x script
 ls -la
 env
+echo "Temporary directory is $TEMP_DIR"
 echo "DISTRO="${DISTR}" DIGIT_DELIMITER2="${DELIMITER}" ./script"
 exit 1
 DISTRO="${DISTR}" DIGIT_DELIMITER2="${DELIMITER}" ./script
