@@ -23,6 +23,7 @@ cd ${TEMP_DIR}
 curl -sSL "https://raw.githubusercontent.com/sanikolaev/publish_to_repo/main/upload_repo_${TYPE}" > script
 chmod +x script
 ls -la
+env
 echo "DISTRO="${DISTR}" DIGIT_DELIMITER2="${DELIMITER}" ./script"
 DISTRO="${DISTR}" DIGIT_DELIMITER2="${DELIMITER}" ./script
 echo "Script finished with exit code $?"
