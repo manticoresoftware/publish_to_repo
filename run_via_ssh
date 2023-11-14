@@ -32,16 +32,19 @@ EOF
 chmod +x script
 
 for n in `seq 1 10`; do
-  scp -i ${SSH_KEY_LOCATION} ${SSH_OPTS} script ${REMOTE_SERVER}:$script_name
+  scp -i ${SSH_KEY_LOCATION} ${SSH_OPTS} script ${REMOTE_SERVER}:${script_name}
   [[ $? -eq 0 ]] && break || if [[ $n -eq 10 ]]; then echo "ERROR: scp failed" && exit 1; fi;
 done
+echo "Copied script to ${REMOTE_SERVER}:${script_name}"
 
 for n in `seq 1 10`; do
-  ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} $script_name
+  ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} ${script_name}
   [[ $? -eq 0 ]] && break || if [[ $n -eq 10 ]]; then echo "ERROR: script failed via ssh" && exit 1; fi;
 done
+echo "Ran ${script_name} on ${REMOTE_SERVER}"
 
 for n in `seq 1 10`; do
-  ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} rm $script_name
-  if [[ $n -eq 10 ]]; then echo "ERROR: failed to cleanup via ssh" && exit 1; fi;
+  ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} rm ${script_name}
+  [[ $? -eq 0 ]] && break || if [[ $n -eq 10 ]]; then echo "ERROR: failed to cleanup via ssh" && exit 1; fi;
 done
+echo "Cleanup of ${script_name} finished"
