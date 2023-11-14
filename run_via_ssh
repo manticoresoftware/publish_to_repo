@@ -18,6 +18,13 @@ done
 echo "Copied package to $TEMP_DIR"
 
 cat <<EOF > script
+abc
+EOF
+
+cat script
+
+
+cat <<EOF > script
 cd ${TEMP_DIR}
 curl -sSL "https://raw.githubusercontent.com/sanikolaev/publish_to_repo/main/upload_repo_${TYPE}" > script
 chmod +x script
