@@ -31,7 +31,6 @@ EOF
 chmod +x /tmp/script
 
 script_name="/tmp/script$RANDOM"
-echo ${script_name}
 for n in `seq 1 10`; do
   scp -i ${SSH_KEY_LOCATION} ${SSH_OPTS} /tmp/script ${REMOTE_SERVER}:${script_name}
   [[ $? -eq 0 ]] && break || if [[ $n -eq 10 ]]; then echo "ERROR: scp failed" && exit 1; fi;
