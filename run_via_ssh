@@ -17,27 +17,31 @@ done
 
 echo "Copied package to $TEMP_DIR"
 
-for n in `seq 1 10`; do
+script_name="/tmp/script$RANDOM"
   cat <<EOF > script
 cd ${TEMP_DIR}
 curl -sSL "https://raw.githubusercontent.com/sanikolaev/publish_to_repo/main/upload_repo_${TYPE}" > script
 chmod +x script
-ls -la
-env
-echo "Temporary directory is $TEMP_DIR"
-echo "DISTRO="${DISTR}" DIGIT_DELIMITER2="${DELIMITER}" ./script"
-#exit 1
-DISTRO="${DISTR}" DIGIT_DELIMITER2="${DELIMITER}" ./script && echo ok
+DISTRO="${DISTR}" DIGIT_DELIMITER2="${DELIMITER}" ./script
 echo "Script finished with exit code $?"
 echo "Removing ${TEMP_DIR}"
 rm -rf ${TEMP_DIR}
 echo "Cleaning up old temp dirs in /tmp/"
 find /tmp -type d -ctime +2 -name 'tmp.*' -exec rm -rf {} \;
 EOF
-  cat script
-  chmod +x script
-  ls -la script
-  scp -v -i ${SSH_KEY_LOCATION} ${SSH_OPTS} script ${REMOTE_SERVER}:/tmp/script
-  ssh -v -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} /tmp/script
-  [[ $? -eq 0 ]] && break || if [[ $n -eq 10 ]]; then echo "ERROR: couldn't run script via ssh" && exit 1; fi;
+chmod +x script
+
+for n in `seq 1 10`; do
+  scp -i ${SSH_KEY_LOCATION} ${SSH_OPTS} script ${REMOTE_SERVER}:$script_name
+  [[ $? -eq 0 ]] && break || if [[ $n -eq 10 ]]; then echo "ERROR: scp failed" && exit 1; fi;
+done
+
+for n in `seq 1 10`; do
+  ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} $script_name
+  [[ $? -eq 0 ]] && break || if [[ $n -eq 10 ]]; then echo "ERROR: script failed via ssh" && exit 1; fi;
+done
+
+for n in `seq 1 10`; do
+  ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} rm $script_name
+  if [[ $n -eq 10 ]]; then echo "ERROR: failed to cleanup via ssh" && exit 1; fi;
 done
