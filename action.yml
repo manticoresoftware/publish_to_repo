@@ -34,7 +34,6 @@ runs:
         curl -sSL https://raw.githubusercontent.com/sanikolaev/publish_to_repo/main/run_via_ssh > script
         chmod +x script
         ./script
-        echo $?
       env:
         REMOTE_SERVER: root@repo.manticoresearch.com
         SSH_KEY: ${{ inputs.ssh_key }}
