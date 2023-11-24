@@ -1,25 +1,24 @@
 name: 'Publish packages to Manticore repo'
 description: 'This action publishes built packages to Manticore repo'
 inputs:
-  name:
-    distr:
-      required: true
-      type: string
-    arch:
-      required: true
-      type: string
-    type:
-      required: true
-      type: string
-    delimiter:
-      required: true
-      type: string
-    artifact:
-      required: true
-      type: string
-    ssh_key:
-      required: true
-      type: string
+  distr:
+    required: true
+    type: string
+  arch:
+    required: true
+    type: string
+  type:
+    required: true
+    type: string
+  delimiter:
+    required: true
+    type: string
+  artifact:
+    required: true
+    type: string
+  ssh_key:
+    required: true
+    type: string
 runs:
   using: "composite"
   steps:
