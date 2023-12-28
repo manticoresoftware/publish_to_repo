@@ -56,7 +56,15 @@ for f in `find "$BUILD_FOLDER" -type f \( -name "*deb" \)`; do
   echo "file $f"
   packageName="$(basename "$f")"
   VER=$(echo "$f" | cut -d_ -f2)
-  ARCH=$(echo "$f" | cut -d_ -f3 | cut -d. -f1)
+  if [[ "$f" == *"_amd64"* ]]; then
+    ARCH="amd64"
+  elif [[ "$f" == *"_arm64"* ]]; then
+    ARCH="arm64"
+  elif [[ "$f" == *"_all"* ]]; then
+    ARCH="all"
+  else
+    ARCH=""
+  fi
   echo "Arch: $ARCH"
 
   if [ -f "$f" ]; then
