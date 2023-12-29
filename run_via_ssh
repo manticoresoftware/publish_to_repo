@@ -19,6 +19,7 @@ echo "Copied package to $TEMP_DIR"
 
 cat <<EOF > /tmp/script
 cd ${TEMP_DIR}
+echo "Downloading https://raw.githubusercontent.com/manticoresoftware/publish_to_repo/main/upload_repo_${TYPE} to script"
 curl -sSL "https://raw.githubusercontent.com/manticoresoftware/publish_to_repo/main/upload_repo_${TYPE}" > script
 chmod +x script
 echo 'Running DISTRO="${DISTR}" DIGIT_DELIMITER2="${DELIMITER}" TARGET="${TARGET}" ./script'
