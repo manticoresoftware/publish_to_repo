@@ -72,16 +72,18 @@ for f in `find "$BUILD_FOLDER" -type f \( -name "*deb" \)`; do
       if [ -z "$IS_RELEASE_DIGIT" ]; then
         IS_RELEASE_DIGIT=$(echo "$f" | cut -d$DIGIT_DELIMITER1 -f$DIGIT_FIELD1 | cut -d$DIGIT_DELIMITER2 -f$DIGIT_FIELD2)
         if [[ $((IS_RELEASE_DIGIT % 2)) -eq 0 ]]; then
-          TARGET="release"
+          DESTINATION="release"
         else
-          TARGET="dev"
+          DESTINATION="dev"
         fi
       fi
+    else
+      DESTINATION=$TARGET
     fi
 
-    if [[ $TARGET == "dev" ]]; then
+    if [[ $DESTINATION == "dev" ]]; then
       SUFFIX="_dev"
-    elif [[ $TARGET == "release" ]]; then
+    elif [[ $DESTINATION == "release" ]]; then
       SUFFIX=""
     fi
 
@@ -98,17 +100,17 @@ for f in `find "$BUILD_FOLDER" -type f \( -name "*deb" \)`; do
 
     if [[ $ARCH == "amd64" ]]; then
       archs[amd]=1
-      repo_generator --distro "$DISTRO" --architecture amd --target "$TARGET" --name "$packageName" --not-index "<$f"
+      repo_generator --distro "$DISTRO" --architecture amd --target "$DESTINATION" --name "$packageName" --not-index "<$f"
     fi
 
     if [[ $ARCH == "arm64" ]]; then
       archs[arm]=1
-      repo_generator --distro "$DISTRO" --architecture arm --target "$TARGET" --name "$packageName" --not-index "<$f"
+      repo_generator --distro "$DISTRO" --architecture arm --target "$DESTINATION" --name "$packageName" --not-index "<$f"
     fi
 
     if [[ $ARCH == "all" ]]; then
-      repo_generator --distro "$DISTRO" --architecture amd --target "$TARGET" --name "$packageName" --not-index "<$f"
-      repo_generator --distro "$DISTRO" --architecture arm --target "$TARGET" --name "$packageName" --not-index "<$f"
+      repo_generator --distro "$DISTRO" --architecture amd --target "$DESTINATION" --name "$packageName" --not-index "<$f"
+      repo_generator --distro "$DISTRO" --architecture arm --target "$DESTINATION" --name "$packageName" --not-index "<$f"
       archs[amd]=1
       archs[arm]=1
     fi
@@ -137,8 +139,8 @@ fi
 
 echo "Indexing"
 for arch in "${!archs[@]}"; do
-  echo "Indexing $DISTRO $arch $TARGET"
-  repo_generator --distro "$DISTRO" --architecture "$arch" --target "$TARGET" --only-index
+  echo "Indexing $DISTRO $arch $DESTINATION"
+  repo_generator --distro "$DISTRO" --architecture "$arch" --target "$DESTINATION" --only-index
 done
 
 echo "Cleanup"
