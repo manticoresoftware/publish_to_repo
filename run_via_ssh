@@ -21,6 +21,7 @@ cat <<EOF > /tmp/script
 cd ${TEMP_DIR}
 curl -sSL "https://raw.githubusercontent.com/manticoresoftware/publish_to_repo/main/upload_repo_${TYPE}" > script
 chmod +x script
+echo 'Running DISTRO="${DISTR}" DIGIT_DELIMITER2="${DELIMITER}" TARGET="${TARGET}" ./script'
 DISTRO="${DISTR}" DIGIT_DELIMITER2="${DELIMITER}" TARGET="${TARGET}" ./script
 echo "Script finished with exit code $?"
 echo "Removing ${TEMP_DIR}"
