@@ -32,12 +32,14 @@ repo_generator() {
 }
 
 get_destination() {
-  if [ -z "${IS_RELEASE_DIGIT}" ]; then
-    IS_RELEASE_DIGIT="$(echo "$f" | cut -d$DIGIT_DELIMITER1 -f$DIGIT_FIELD1 | cut -d$DIGIT_DELIMITER2 -f$DIGIT_FIELD2)"
-    if [[ $((IS_RELEASE_DIGIT % 2)) -eq 0 ]]; then
-      DESTINATION="release_candidate"
-    else
-      DESTINATION="dev"
+  if [ -z "$TARGET" ]; then
+    if [ -z "${IS_RELEASE_DIGIT}" ]; then
+      IS_RELEASE_DIGIT="$(echo "$f" | cut -d$DIGIT_DELIMITER1 -f$DIGIT_FIELD1 | cut -d$DIGIT_DELIMITER2 -f$DIGIT_FIELD2)"
+      if [[ $((IS_RELEASE_DIGIT % 2)) -eq 0 ]]; then
+        TARGET="release_candidate"
+      else
+        TARGET="dev"
+      fi
     fi
   fi
 }
@@ -50,7 +52,7 @@ for f in `find "$BUILD_FOLDER" -type f \( -name "*.zip" -o -name "*.exe" \)`; do
   if [ -f "$f" ]; then
     echo "Processing $f"
     get_destination
-    repo_generator --path "/repository/manticoresearch_windows/$DESTINATION/x64/" --name "$packageName" --not-index --skip-signing "<$f"
+    repo_generator --path "/repository/manticoresearch_windows/$TARGET/x64/" --name "$packageName" --not-index --skip-signing "<$f"
   fi
 done
 
@@ -59,7 +61,7 @@ for f in `find "$BUILD_FOLDER" -type f \( -name "*.gz" \)`; do
   if [ -f "$f" ]; then
     echo "Processing $f"
     get_destination
-    repo_generator --path "/repository/manticoresearch_macos/$DESTINATION/" --name "$packageName" --not-index --skip-signing "<$f"
+    repo_generator --path "/repository/manticoresearch_macos/$TARGET/" --name "$packageName" --not-index --skip-signing "<$f"
   fi
 done
 

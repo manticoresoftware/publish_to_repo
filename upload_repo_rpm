@@ -84,29 +84,31 @@ for f in `find "$BUILD_FOLDER" -type f \( -name "$FILE_MASK" \)`; do
 
   if [ -f "$f" ]; then
     echo "Processing $f"
-    if [ -z "${IS_RELEASE_DIGIT}" ]; then
-      IS_RELEASE_DIGIT=$(echo "$f" | cut -d$DIGIT_DELIMITER1 -f$DIGIT_FIELD1 | cut -d$DIGIT_DELIMITER2 -f$DIGIT_FIELD2)
-      if [[ $((IS_RELEASE_DIGIT % 2)) -eq 0 ]]; then
-        DESTINATION="release"
-      else
-        DESTINATION="dev"
+    if [ -z "$TARGET" ]; then
+      if [ -z "${IS_RELEASE_DIGIT}" ]; then
+        IS_RELEASE_DIGIT=$(echo "$f" | cut -d$DIGIT_DELIMITER1 -f$DIGIT_FIELD1 | cut -d$DIGIT_DELIMITER2 -f$DIGIT_FIELD2)
+        if [[ $((IS_RELEASE_DIGIT % 2)) -eq 0 ]]; then
+          TARGET="release"
+        else
+          TARGET="dev"
+        fi
       fi
     fi
 
     packageName="$(basename "$f")"
     if [[ $ARCH == "x86_64" ]]; then
-      repo_generator -n "$packageName" -d centos -v "$DISTRO" -t "$DESTINATION" -a x86_64 --not-index "<$f"
+      repo_generator -n "$packageName" -d centos -v "$DISTRO" -t "$TARGET" -a x86_64 --not-index "<$f"
       archs[x86_64]=1
     fi
 
     if [[ $ARCH == "aarch64" ]]; then
-      repo_generator -n "$packageName" -d centos -v "$DISTRO" -t "$DESTINATION" -a aarch64 --not-index "<$f"
+      repo_generator -n "$packageName" -d centos -v "$DISTRO" -t "$TARGET" -a aarch64 --not-index "<$f"
       archs[aarch64]=1
     fi
 
     if [[ $ARCH == "noarch" ]]; then
-      repo_generator -n "$packageName" -d centos -v "$DISTRO" -t "$DESTINATION" -a x86_64 --not-index "<$f"
-      repo_generator -n "$packageName" -d centos -v "$DISTRO" -t "$DESTINATION" -a aarch64 --not-index "<$f"
+      repo_generator -n "$packageName" -d centos -v "$DISTRO" -t "$TARGET" -a x86_64 --not-index "<$f"
+      repo_generator -n "$packageName" -d centos -v "$DISTRO" -t "$TARGET" -a aarch64 --not-index "<$f"
       archs[x86_64]=1
       archs[aarch64]=1
     fi
@@ -122,21 +124,21 @@ if [ -n "$MAKE_BUNDLE" ]; then
     echo "Making bundle x86_64"
     TGZ1=manticore-${VER}.x86_64.tgz
     (cd build && tar cf - $(ls | grep -v -e debuginfo | grep "x86_64\|noarch") *icudata*rpm | gzip -9 -f) >"$TGZ1"
-    repo_generator -p "/repository/manticoresearch/$DESTINATION/centos/$DISTRO/" -n "$TGZ1" --not-index --skip-signing <"$TGZ1"
+    repo_generator -p "/repository/manticoresearch/$TARGET/centos/$DISTRO/" -n "$TGZ1" --not-index --skip-signing <"$TGZ1"
   fi
 
   if [[ ${archs[aarch64]} == 1 ]]; then
     echo "Making bundle aarch64"
     TGZ2=manticore-${VER}.aarch64.tgz
     (cd build && tar cf - $(ls | grep -v -e debuginfo | grep "aarch64\|noarch") *icudata*rpm | gzip -9 -f) >"$TGZ2"
-    repo_generator -p "/repository/manticoresearch/$DESTINATION/centos/$DISTRO/" -n "$TGZ2" --not-index --skip-signing <"$TGZ2"
+    repo_generator -p "/repository/manticoresearch/$TARGET/centos/$DISTRO/" -n "$TGZ2" --not-index --skip-signing <"$TGZ2"
   fi
 fi
 
 echo "Indexing"
 # no need to make bundle as we deploy one single package
 for arch in "${!archs[@]}"; do
-  repo_generator -d centos -v "$DISTRO" --architecture "$arch" --target "$DESTINATION" --only-index
+  repo_generator -d centos -v "$DISTRO" --architecture "$arch" --target "$TARGET" --only-index
 done
 
 echo "Cleanup"

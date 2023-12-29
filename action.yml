@@ -19,6 +19,9 @@ inputs:
   ssh_key:
     required: true
     type: string
+  target:
+    required: false
+    type: string
 runs:
   using: "composite"
   steps:
@@ -40,3 +43,4 @@ runs:
         TYPE: ${{ inputs.type }}
         DELIMITER: ${{ inputs.delimiter }}
         DISTR: ${{ inputs.distr }}
+        TARGET: ${{ inputs.target }}

@@ -68,15 +68,21 @@ for f in `find "$BUILD_FOLDER" -type f \( -name "*deb" \)`; do
   echo "Arch: $ARCH"
 
   if [ -f "$f" ]; then
-    if [ -z "$IS_RELEASE_DIGIT" ]; then
-      IS_RELEASE_DIGIT=$(echo "$f" | cut -d$DIGIT_DELIMITER1 -f$DIGIT_FIELD1 | cut -d$DIGIT_DELIMITER2 -f$DIGIT_FIELD2)
-      if [[ $((IS_RELEASE_DIGIT % 2)) -ne 0 ]]; then
-        TARGET="dev"
-        SUFFIX="_dev"
-      else
-        TARGET="release"
-        SUFFIX=""
+    if [ -z "$TARGET" ]; then
+      if [ -z "$IS_RELEASE_DIGIT" ]; then
+        IS_RELEASE_DIGIT=$(echo "$f" | cut -d$DIGIT_DELIMITER1 -f$DIGIT_FIELD1 | cut -d$DIGIT_DELIMITER2 -f$DIGIT_FIELD2)
+        if [[ $((IS_RELEASE_DIGIT % 2)) -eq 0 ]]; then
+          TARGET="release"
+        else
+          TARGET="dev"
+        fi
       fi
+    fi
+
+    if [[ $TARGET == "dev" ]]; then
+      SUFFIX="_dev"
+    elif [[ $TARGET == "release" ]]; then
+      SUFFIX=""
     fi
 
     # check if we really need to put icudata to the repo this time
