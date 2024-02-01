@@ -50,8 +50,22 @@ declare -A archs
 
 echo "Packages integrity check"
 for f in `find "$BUILD_FOLDER" -type f \( -name "$FILE_MASK" \)`; do
+
+  if [ -z "$TARGET" ]; then
+    if [ -z "${IS_RELEASE_DIGIT}" ]; then
+      IS_RELEASE_DIGIT=$(echo "$f" | cut -d$DIGIT_DELIMITER1 -f$DIGIT_FIELD1 | cut -d$DIGIT_DELIMITER2 -f$DIGIT_FIELD2)
+      if [[ $((IS_RELEASE_DIGIT % 2)) -eq 0 ]]; then
+        DESTINATION="release"
+      else
+        DESTINATION="dev"
+      fi
+    fi
+  else
+    DESTINATION=$TARGET
+  fi
+
   packageName="$(basename "$f")"
-  if ! repo_generator -n "$packageName" -d centos --check-package "<$f"; then
+  if ! repo_generator -t "$DESTINATION" -n "$packageName" -d centos --check-package "<$f"; then
       echo "$packageName is corrupted. Abort uploading"
       exit 1
   fi
@@ -84,18 +98,6 @@ for f in `find "$BUILD_FOLDER" -type f \( -name "$FILE_MASK" \)`; do
 
   if [ -f "$f" ]; then
     echo "Processing $f"
-    if [ -z "$TARGET" ]; then
-      if [ -z "${IS_RELEASE_DIGIT}" ]; then
-        IS_RELEASE_DIGIT=$(echo "$f" | cut -d$DIGIT_DELIMITER1 -f$DIGIT_FIELD1 | cut -d$DIGIT_DELIMITER2 -f$DIGIT_FIELD2)
-        if [[ $((IS_RELEASE_DIGIT % 2)) -eq 0 ]]; then
-          DESTINATION="release"
-        else
-          DESTINATION="dev"
-        fi
-      fi
-    else
-      DESTINATION=$TARGET
-    fi
 
     packageName="$(basename "$f")"
     if [[ $ARCH == "x86_64" ]]; then

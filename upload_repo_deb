@@ -45,8 +45,21 @@ declare -A archs
 
 echo "Packages integrity check"
 for f in `find "$BUILD_FOLDER" -type f \( -name "*deb" \)`; do
+  if [ -z "$TARGET" ]; then
+    if [ -z "$IS_RELEASE_DIGIT" ]; then
+      IS_RELEASE_DIGIT=$(echo "$f" | cut -d$DIGIT_DELIMITER1 -f$DIGIT_FIELD1 | cut -d$DIGIT_DELIMITER2 -f$DIGIT_FIELD2)
+      if [[ $((IS_RELEASE_DIGIT % 2)) -eq 0 ]]; then
+        DESTINATION="release"
+      else
+        DESTINATION="dev"
+      fi
+    fi
+  else
+    DESTINATION=$TARGET
+  fi
+
   packageName="$(basename "$f")"
-  if ! repo_generator --distro "$DISTRO" --check-package --name "$packageName" "<$f"; then
+  if ! repo_generator --target "$DESTINATION" --distro "$DISTRO" --check-package --name "$packageName" "<$f"; then
       echo "$packageName is corrupted. Abort uploading"
       exit 1
   fi
@@ -68,19 +81,6 @@ for f in `find "$BUILD_FOLDER" -type f \( -name "*deb" \)`; do
   echo "Arch: $ARCH"
 
   if [ -f "$f" ]; then
-    if [ -z "$TARGET" ]; then
-      if [ -z "$IS_RELEASE_DIGIT" ]; then
-        IS_RELEASE_DIGIT=$(echo "$f" | cut -d$DIGIT_DELIMITER1 -f$DIGIT_FIELD1 | cut -d$DIGIT_DELIMITER2 -f$DIGIT_FIELD2)
-        if [[ $((IS_RELEASE_DIGIT % 2)) -eq 0 ]]; then
-          DESTINATION="release"
-        else
-          DESTINATION="dev"
-        fi
-      fi
-    else
-      DESTINATION=$TARGET
-    fi
-
     if [[ $DESTINATION == "dev" ]]; then
       SUFFIX="_dev"
     elif [[ $DESTINATION == "release" ]]; then
