@@ -56,7 +56,7 @@ for f in `find "$BUILD_FOLDER" -type f \( -name "*.zip" -o -name "*.exe" \) | so
   if [ -f "$f" ]; then
     echo "Processing $f"
     get_destination
-    repo_generator --path "/repository/manticoresearch_windows/$DESTINATION/x64/" --name "$packageName" --not-index --skip-signing "<$f"
+    repo_generator --path "/repository/manticoresearch_windows/$DESTINATION/x64/" --name "$packageName" --target "$DESTINATION" --not-index --skip-signing "<$f"
   fi
 done
 
@@ -65,7 +65,7 @@ for f in `find "$BUILD_FOLDER" -type f \( -name "*.gz" \) | sort -t- -k2`; do
   if [ -f "$f" ]; then
     echo "Processing $f"
     get_destination
-    repo_generator --path "/repository/manticoresearch_macos/$DESTINATION/" --name "$packageName" --not-index --skip-signing "<$f"
+    repo_generator --path "/repository/manticoresearch_macos/$DESTINATION/" --name "$packageName" --target "$DESTINATION" --not-index --skip-signing "<$f"
   fi
 done
 
