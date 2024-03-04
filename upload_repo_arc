@@ -51,7 +51,7 @@ get_destination() {
 echo "Contents of ./$BUILD_FOLDER:"
 find "$BUILD_FOLDER"
 
-for f in `find "$BUILD_FOLDER" -type f \( -name "*.zip" -o -name "*.exe" \)`; do
+for f in `find "$BUILD_FOLDER" -type f \( -name "*.zip" -o -name "*.exe" \) | sort -t- -k2`; do
   packageName="$(basename "$f")"
   if [ -f "$f" ]; then
     echo "Processing $f"
@@ -60,7 +60,7 @@ for f in `find "$BUILD_FOLDER" -type f \( -name "*.zip" -o -name "*.exe" \)`; do
   fi
 done
 
-for f in `find "$BUILD_FOLDER" -type f \( -name "*.gz" \)`; do
+for f in `find "$BUILD_FOLDER" -type f \( -name "*.gz" \) | sort -t- -k2`; do
   packageName="$(basename "$f")"
   if [ -f "$f" ]; then
     echo "Processing $f"

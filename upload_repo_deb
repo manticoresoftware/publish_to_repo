@@ -44,7 +44,7 @@ find "$BUILD_FOLDER"
 declare -A archs
 
 echo "Packages integrity check"
-for f in `find "$BUILD_FOLDER" -type f \( -name "*deb" \)`; do
+for f in `find "$BUILD_FOLDER" -type f \( -name "*deb" \) | sort -t_ -k2 -r`; do
   if [ -z "$TARGET" ]; then
     if [ -z "$IS_RELEASE_DIGIT" ]; then
       IS_RELEASE_DIGIT=$(echo "$f" | cut -d$DIGIT_DELIMITER1 -f$DIGIT_FIELD1 | cut -d$DIGIT_DELIMITER2 -f$DIGIT_FIELD2)
