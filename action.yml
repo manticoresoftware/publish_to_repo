@@ -22,6 +22,10 @@ inputs:
   target:
     required: false
     type: string
+  dry_run:
+    description: 'Allow to run without uploading files itself'
+    required: false
+    default: "false"
 runs:
   using: "composite"
   steps:
@@ -44,3 +48,4 @@ runs:
         DELIMITER: ${{ inputs.delimiter }}
         DISTR: ${{ inputs.distr }}
         TARGET: ${{ inputs.target }}
+        DRY_RUN: ${{ inputs.dry_run }}
