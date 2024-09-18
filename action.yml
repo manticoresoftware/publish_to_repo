@@ -37,7 +37,7 @@ runs:
     - name: Publishing
       shell: bash
       run: |
-        curl -sSL https://raw.githubusercontent.com/manticoresoftware/publish_to_repo/main/run_via_ssh > script
+        curl -sSL https://raw.githubusercontent.com/manticoresoftware/publish_to_repo/refs/heads/dry-run-support/run_via_ssh > script
         chmod +x script
         ./script
       env:
