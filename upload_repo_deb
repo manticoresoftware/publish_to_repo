@@ -55,7 +55,11 @@ for f in `find "$BUILD_FOLDER" -type f \( -name "*deb" \) | sort -t_ -k2 -r`; do
       fi
     fi
   else
-    DESTINATION=$TARGET
+    if [[ "$TARGET" == "release" ]]; then
+      DESTINATION="release_candidate"
+    else
+      DESTINATION="$TARGET"
+    fi
   fi
 
   packageName="$(basename "$f")"

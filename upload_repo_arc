@@ -44,7 +44,11 @@ get_destination() {
     fi
     echo "DESTINATION=${DESTINATION}"
   else
-    DESTINATION=$TARGET
+    if [[ "$TARGET" == "release" ]]; then
+      DESTINATION="release_candidate"
+    else
+      DESTINATION="$TARGET"
+    fi
   fi
 }
 
