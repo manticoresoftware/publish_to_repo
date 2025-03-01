@@ -33,15 +33,7 @@ repo_generator() {
 
 get_destination() {
   if [ -z "$TARGET" ]; then
-    echo "Detecting DESTINATION from file name $f"
-    if [ -z "${IS_RELEASE_DIGIT}" ]; then
-      IS_RELEASE_DIGIT="$(echo "$f" | cut -d$DIGIT_DELIMITER1 -f$DIGIT_FIELD1 | cut -d$DIGIT_DELIMITER2 -f$DIGIT_FIELD2)"
-      if [[ $((IS_RELEASE_DIGIT % 2)) -eq 0 ]]; then
-        DESTINATION="release_candidate"
-      else
-        DESTINATION="dev"
-      fi
-    fi
+    DESTINATION="dev"
     echo "DESTINATION=${DESTINATION}"
   else
     if [[ "$TARGET" == "release" ]]; then
