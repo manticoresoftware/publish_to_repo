@@ -49,3 +49,7 @@ runs:
         DISTR: ${{ inputs.distr }}
         TARGET: ${{ inputs.target }}
         DRY_RUN: ${{ inputs.dry_run }}
+        # Explicitly pass GitHub Actions variables
+        GITHUB_RUN_ID: ${{ github.run_id }}
+        GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}
+        GITHUB_JOB: ${{ github.job }}
