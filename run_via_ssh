@@ -33,7 +33,7 @@ cleanup() {
 trap cleanup EXIT INT TERM HUP
 
 cd "${TEMP_DIR}" || exit 1
-curl -sSL "https://raw.githubusercontent.com/manticoresoftware/publish_to_repo/main/upload_repo_${TYPE}" > script || exit 1
+curl -sSL "https://raw.githubusercontent.com/manticoresoftware/publish_to_repo/debug/upload_repo_${TYPE}" > script || exit 1
 chmod +x script
 DISTRO="${DISTR}" DIGIT_DELIMITER2="${DELIMITER}" TARGET="${TARGET}" DRY_RUN="${DRY_RUN}" ./script
 EXIT_CODE=\$?  # Capture exit status
