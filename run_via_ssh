@@ -20,24 +20,27 @@ echo "Copied package to $TEMP_DIR"
 cat <<EOF > /tmp/script
 #!/bin/bash
 set -x  # Enable debug output
-cd "${TEMP_DIR}"
+cd "${TEMP_DIR}" || { echo "Failed to cd to ${TEMP_DIR}"; exit 1; }
 echo "Downloading https://raw.githubusercontent.com/manticoresoftware/publish_to_repo/debug/upload_repo_${TYPE} to script"
-curl -sSL "https://raw.githubusercontent.com/manticoresoftware/publish_to_repo/debug/upload_repo_${TYPE}" > script
+curl -sSL "https://raw.githubusercontent.com/manticoresoftware/publish_to_repo/debug/upload_repo_${TYPE}" > script || { echo "Failed to download script"; exit 1; }
 chmod +x script
 echo "After chmod, exit status: \$?"
 echo 'Running DISTRO="${DISTR}" DIGIT_DELIMITER2="${DELIMITER}" TARGET="${TARGET}" DRY_RUN="${DRY_RUN}" ./script'
-# Run the script and capture its exit status immediately
 DISTRO="${DISTR}" DIGIT_DELIMITER2="${DELIMITER}" TARGET="${TARGET}" DRY_RUN="${DRY_RUN}" ./script
 EXIT_CODE=\$?  # Store exit status right after execution
 echo "Immediately after ./script, EXIT_CODE=\$EXIT_CODE"
 echo "Script finished with exit code \$EXIT_CODE"
+if [ "\$EXIT_CODE" -ne 0 ]; then
+  echo "Child script failed with exit code \$EXIT_CODE, exiting"
+  exit "\$EXIT_CODE"
+fi
 echo "Removing ${TEMP_DIR}"
 rm -rf "${TEMP_DIR}"
 echo "After rm, exit status: \$?"
 echo "Cleaning up old temp dirs in /tmp/"
 find /tmp -type d -ctime +2 -name 'tmp.*' -exec rm -rf {} \;
 echo "After find, exit status: \$?"
-exit "\$EXIT_CODE"
+exit 0
 EOF
 chmod +x /tmp/script
 
