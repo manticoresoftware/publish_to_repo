@@ -19,16 +19,27 @@ echo "Copied package to $TEMP_DIR"
 
 cat <<EOF > /tmp/script
 #!/bin/bash
+
+# Cleanup function to remove TEMP_DIR
+cleanup() {
+  echo "Cleanup: remove TEMP_DIR"
+  rm -rf "${TEMP_DIR}"
+  echo "Cleanup: remove outdated packages"
+  find /tmp -type d -ctime +2 -name 'tmp.*' -exec rm -rf {} \;
+  echo "Cleanup: End cleanup"
+}
+
+# Set trap to call cleanup on script exit or interruption
+trap cleanup EXIT INT TERM HUP
+
 cd "${TEMP_DIR}" || exit 1
-curl -sSL "https://raw.githubusercontent.com/manticoresoftware/publish_to_repo/debug/upload_repo_${TYPE}" > script || exit 1
+curl -sSL "https://raw.githubusercontent.com/manticoresoftware/publish_to_repo/main/upload_repo_${TYPE}" > script || exit 1
 chmod +x script
 DISTRO="${DISTR}" DIGIT_DELIMITER2="${DELIMITER}" TARGET="${TARGET}" DRY_RUN="${DRY_RUN}" ./script
 EXIT_CODE=\$?  # Capture exit status
 if [ "\$EXIT_CODE" -ne 0 ]; then
   exit "\$EXIT_CODE"
 fi
-rm -rf "${TEMP_DIR}"
-find /tmp -type d -ctime +2 -name 'tmp.*' -exec rm -rf {} \;
 exit 0
 EOF
 chmod +x /tmp/script
