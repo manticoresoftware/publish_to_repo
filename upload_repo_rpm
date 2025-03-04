@@ -30,7 +30,7 @@ echo "Uploading $DISTRO"
 echo "Collected rpm packages"
 ls "$BUILD_FOLDER"
 
-set -ex
+set -e
 
 repo_generator() {
   # shellcheck disable=SC2068
