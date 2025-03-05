@@ -5,21 +5,20 @@ chmod 600 ${SSH_KEY_LOCATION}
 SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
 
 # Debug: Verify variables locally
-echo "Local: ${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${GITHUB_JOB}"
+echo "Local: ${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${GITHUB_JOB}_${DISTR}"
 
-# Create TEMP_DIR with run-specific suffix, ensuring base directory exists
+# Create TEMP_DIR with run-specific suffix, passing GitHub variables and DISTR to remote
 for n in `seq 1 10`; do
   TEMP_DIR=$(ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} "
-    GITHUB_RUN_ID=${GITHUB_RUN_ID} GITHUB_RUN_ATTEMPT=${GITHUB_RUN_ATTEMPT} GITHUB_JOB=${GITHUB_JOB} bash -c '
+    GITHUB_RUN_ID=${GITHUB_RUN_ID} GITHUB_RUN_ATTEMPT=${GITHUB_RUN_ATTEMPT} GITHUB_JOB=${GITHUB_JOB} DISTR=${DISTR} bash -c '
       BASE_DIR=/tmp/upload_to_repo_runs;
-      # Create base directory if it doesn'\''t exist
       mkdir -p \"\$BASE_DIR\" || { echo \"Failed to create \$BASE_DIR\" >&2; exit 1; };
-      echo \"Remote: \${GITHUB_RUN_ID}_\${GITHUB_RUN_ATTEMPT}_\${GITHUB_JOB}\";
-      RUN_ID=\${GITHUB_RUN_ID}_\${GITHUB_RUN_ATTEMPT}_\${GITHUB_JOB};
+      echo \"Remote: \${GITHUB_RUN_ID}_\${GITHUB_RUN_ATTEMPT}_\${GITHUB_JOB}_\${DISTR}\";
+      RUN_ID=\${GITHUB_RUN_ID}_\${GITHUB_RUN_ATTEMPT}_\${GITHUB_JOB}_\${DISTR};
       TEMP_DIR=\${BASE_DIR}/run_\${RUN_ID};
-      # Clean up previous attempts of this job
-      for dir in \"\${BASE_DIR}\"/run_\${GITHUB_RUN_ID}_*_\${GITHUB_JOB}; do
-        if [[ \"\$dir\" =~ run_\${GITHUB_RUN_ID}_([0-9]+)_\${GITHUB_JOB}\$ ]]; then
+      # Clean up previous attempts of this job with the same DISTR
+      for dir in \"\${BASE_DIR}\"/run_\${GITHUB_RUN_ID}_*_\${GITHUB_JOB}_\${DISTR}; do
+        if [[ \"\$dir\" =~ run_\${GITHUB_RUN_ID}_([0-9]+)_\${GITHUB_JOB}_\${DISTR}\$ ]]; then
           attempt=\"\${BASH_REMATCH[1]}\";
           if [ \"\$attempt\" -lt \${GITHUB_RUN_ATTEMPT} ]; then
             echo \"Removing outdated attempt directory: \$dir\";
@@ -28,7 +27,6 @@ for n in `seq 1 10`; do
         fi;
       done;
       mkdir -p \$TEMP_DIR/build || { echo \"Failed to create \$TEMP_DIR/build\" >&2; exit 1; };
-      # Verify directory exists
       if [ -d \"\$TEMP_DIR/build\" ]; then
         echo \"Created: \$TEMP_DIR/build\";
       else
@@ -37,11 +35,15 @@ for n in `seq 1 10`; do
       fi;
       echo \$TEMP_DIR
     '
-  ")
+  " | tail -n 1)
   [[ $? -eq 0 ]] && break || if [[ $n -eq 10 ]]; then echo "ERROR: couldn't set TEMP_DIR" && exit 1; fi;
 done
 
 echo "Temporary directory is $TEMP_DIR"
+
+# Verify TEMP_DIR exists after creation
+echo "Verifying TEMP_DIR exists on remote server"
+ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} "[ -d \"$TEMP_DIR\" ] && echo \"TEMP_DIR $TEMP_DIR exists\" || echo \"TEMP_DIR $TEMP_DIR does not exist\""
 
 for n in `seq 1 10`; do
   echo "Attempting scp to ${REMOTE_SERVER}:${TEMP_DIR}/ (attempt $n)"
