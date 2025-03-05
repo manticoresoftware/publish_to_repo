@@ -5,20 +5,25 @@ chmod 600 ${SSH_KEY_LOCATION}
 SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
 
 # Debug: Verify variables locally
-echo "Local: ${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${GITHUB_JOB}_${DISTR}"
+echo "Local: ${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}"
 
-# Create TEMP_DIR with run-specific suffix, passing GitHub variables and DISTR to remote
+# Create base directory once
+ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} "mkdir -p /tmp/upload_to_repo_runs || exit 1"
+
+# Generate a random suffix for uniqueness
+RANDOM_SUFFIX=$(od -x /dev/urandom | head -1 | awk '{print $2$3}')
+
+# Create TEMP_DIR with run-specific suffix
 for n in `seq 1 10`; do
   TEMP_DIR=$(ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} "
-    GITHUB_RUN_ID=${GITHUB_RUN_ID} GITHUB_RUN_ATTEMPT=${GITHUB_RUN_ATTEMPT} GITHUB_JOB=${GITHUB_JOB} DISTR=${DISTR} bash -c '
+    GITHUB_RUN_ID=${GITHUB_RUN_ID} GITHUB_RUN_ATTEMPT=${GITHUB_RUN_ATTEMPT} RANDOM_SUFFIX=${RANDOM_SUFFIX} bash -c '
       BASE_DIR=/tmp/upload_to_repo_runs;
-      mkdir -p \"\$BASE_DIR\" || { echo \"Failed to create \$BASE_DIR\" >&2; exit 1; };
-      echo \"Remote: \${GITHUB_RUN_ID}_\${GITHUB_RUN_ATTEMPT}_\${GITHUB_JOB}_\${DISTR}\";
-      RUN_ID=\${GITHUB_RUN_ID}_\${GITHUB_RUN_ATTEMPT}_\${GITHUB_JOB}_\${DISTR};
+      echo \"Remote: \${GITHUB_RUN_ID}_\${GITHUB_RUN_ATTEMPT}_\${RANDOM_SUFFIX}\";
+      RUN_ID=\${GITHUB_RUN_ID}_\${GITHUB_RUN_ATTEMPT}_\${RANDOM_SUFFIX};
       TEMP_DIR=\${BASE_DIR}/run_\${RUN_ID};
-      # Clean up previous attempts of this job with the same DISTR
-      for dir in \"\${BASE_DIR}\"/run_\${GITHUB_RUN_ID}_*_\${GITHUB_JOB}_\${DISTR}; do
-        if [[ \"\$dir\" =~ run_\${GITHUB_RUN_ID}_([0-9]+)_\${GITHUB_JOB}_\${DISTR}\$ ]]; then
+      # Clean up previous attempts of this run (same GITHUB_RUN_ID, lower GITHUB_RUN_ATTEMPT)
+      for dir in \"\${BASE_DIR}\"/run_\${GITHUB_RUN_ID}_*; do
+        if [[ \"\$dir\" =~ run_\${GITHUB_RUN_ID}_([0-9]+)_.*\$ ]]; then
           attempt=\"\${BASH_REMATCH[1]}\";
           if [ \"\$attempt\" -lt \${GITHUB_RUN_ATTEMPT} ]; then
             echo \"Removing outdated attempt directory: \$dir\";
