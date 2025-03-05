@@ -40,7 +40,7 @@ TEMP_DIR=$(ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} "
 echo "Temporary directory is $TEMP_DIR"
 
 echo "Verifying TEMP_DIR exists on remote server"
-ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} "[ -d \"$TEMP_DIR\" ] && echo \"TEMP_DIR $TEMP_DIR exists\" || echo \"TEMP_DIR $TEMP_DIR does not exist\"" || exit 1
+ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} "[ -d \"$TEMP_DIR\" ] && echo \"TEMP_DIR $TEMP_DIR exists\" || echo \"ERROR: TEMP_DIR $TEMP_DIR does not exist\"" || exit 1
 
 for n in `seq 1 10`; do
   echo "Attempting scp to ${REMOTE_SERVER}:${TEMP_DIR}/ (attempt $n)"
