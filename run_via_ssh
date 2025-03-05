@@ -88,4 +88,4 @@ ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} ${script_name} || { echo
 echo "Ran ${script_name} on ${REMOTE_SERVER}"
 
 ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} rm ${script_name} || { echo "ERROR: failed to cleanup script via ssh" && exit 1; }
-echo "Cleanup of ${script_name} finished"
+echo "Cleanup of ${script_name} completed"
