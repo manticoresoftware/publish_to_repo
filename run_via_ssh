@@ -4,25 +4,30 @@ echo "${SSH_KEY}" > ${SSH_KEY_LOCATION}
 chmod 600 ${SSH_KEY_LOCATION}
 SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
 
-echo "${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${GITHUB_JOB}"
-# Create TEMP_DIR with run-specific suffix in a fixed base directory
+# Debug: Verify variables locally
+echo "Local: ${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${GITHUB_JOB}"
+
+# Create TEMP_DIR with run-specific suffix, passing GitHub variables to remote
 for n in `seq 1 10`; do
   TEMP_DIR=$(ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} "
-    BASE_DIR=/tmp/upload_to_repo_runs;
-    RUN_ID=\${GITHUB_RUN_ID}_\${GITHUB_RUN_ATTEMPT}_\${GITHUB_JOB};
-    TEMP_DIR=\${BASE_DIR}/run_\${RUN_ID};
-    # Clean up previous attempts of this job (same GITHUB_RUN_ID and GITHUB_JOB, lower GITHUB_RUN_ATTEMPT)
-    for dir in \"\${BASE_DIR}\"/run_\${GITHUB_RUN_ID}_*_\${GITHUB_JOB}; do
-      if [[ \"\$dir\" =~ run_\${GITHUB_RUN_ID}_([0-9]+)_\${GITHUB_JOB}\$ ]]; then
-        attempt=\"\${BASH_REMATCH[1]}\";
-        if [ \"\$attempt\" -lt \${GITHUB_RUN_ATTEMPT} ]; then
-          echo \"Removing outdated attempt directory: \$dir\";
-          rm -rf \"\$dir\";
+    GITHUB_RUN_ID=${GITHUB_RUN_ID} GITHUB_RUN_ATTEMPT=${GITHUB_RUN_ATTEMPT} GITHUB_JOB=${GITHUB_JOB} bash -c '
+      BASE_DIR=/tmp/upload_to_repo_runs;
+      echo \"Remote: \${GITHUB_RUN_ID}_\${GITHUB_RUN_ATTEMPT}_\${GITHUB_JOB}\";
+      RUN_ID=\${GITHUB_RUN_ID}_\${GITHUB_RUN_ATTEMPT}_\${GITHUB_JOB};
+      TEMP_DIR=\${BASE_DIR}/run_\${RUN_ID};
+      # Clean up previous attempts of this job (same GITHUB_RUN_ID and GITHUB_JOB, lower GITHUB_RUN_ATTEMPT)
+      for dir in \"\${BASE_DIR}\"/run_\${GITHUB_RUN_ID}_*_\${GITHUB_JOB}; do
+        if [[ \"\$dir\" =~ run_\${GITHUB_RUN_ID}_([0-9]+)_\${GITHUB_JOB}\$ ]]; then
+          attempt=\"\${BASH_REMATCH[1]}\";
+          if [ \"\$attempt\" -lt \${GITHUB_RUN_ATTEMPT} ]; then
+            echo \"Removing outdated attempt directory: \$dir\";
+            rm -rf \"\$dir\";
+          fi;
         fi;
-      fi;
-    done;
-    mkdir -p \$TEMP_DIR/build || exit 1;
-    echo \$TEMP_DIR
+      done;
+      mkdir -p \$TEMP_DIR/build || exit 1;
+      echo \$TEMP_DIR
+    '
   ")
   [[ $? -eq 0 ]] && break || if [[ $n -eq 10 ]]; then echo "ERROR: couldn't set TEMP_DIR" && exit 1; fi;
 done
