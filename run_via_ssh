@@ -7,15 +7,17 @@ SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
 # Debug: Verify variables locally
 echo "Local: ${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${GITHUB_JOB}"
 
-# Create TEMP_DIR with run-specific suffix, passing GitHub variables to remote
+# Create TEMP_DIR with run-specific suffix, ensuring base directory exists
 for n in `seq 1 10`; do
   TEMP_DIR=$(ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} "
     GITHUB_RUN_ID=${GITHUB_RUN_ID} GITHUB_RUN_ATTEMPT=${GITHUB_RUN_ATTEMPT} GITHUB_JOB=${GITHUB_JOB} bash -c '
       BASE_DIR=/tmp/upload_to_repo_runs;
+      # Create base directory if it doesn'\''t exist
+      mkdir -p \"\$BASE_DIR\" || { echo \"Failed to create \$BASE_DIR\" >&2; exit 1; };
       echo \"Remote: \${GITHUB_RUN_ID}_\${GITHUB_RUN_ATTEMPT}_\${GITHUB_JOB}\";
       RUN_ID=\${GITHUB_RUN_ID}_\${GITHUB_RUN_ATTEMPT}_\${GITHUB_JOB};
       TEMP_DIR=\${BASE_DIR}/run_\${RUN_ID};
-      # Clean up previous attempts of this job (same GITHUB_RUN_ID and GITHUB_JOB, lower GITHUB_RUN_ATTEMPT)
+      # Clean up previous attempts of this job
       for dir in \"\${BASE_DIR}\"/run_\${GITHUB_RUN_ID}_*_\${GITHUB_JOB}; do
         if [[ \"\$dir\" =~ run_\${GITHUB_RUN_ID}_([0-9]+)_\${GITHUB_JOB}\$ ]]; then
           attempt=\"\${BASH_REMATCH[1]}\";
@@ -25,7 +27,14 @@ for n in `seq 1 10`; do
           fi;
         fi;
       done;
-      mkdir -p \$TEMP_DIR/build || exit 1;
+      mkdir -p \$TEMP_DIR/build || { echo \"Failed to create \$TEMP_DIR/build\" >&2; exit 1; };
+      # Verify directory exists
+      if [ -d \"\$TEMP_DIR/build\" ]; then
+        echo \"Created: \$TEMP_DIR/build\";
+      else
+        echo \"Error: \$TEMP_DIR/build not found after creation\" >&2;
+        exit 1;
+      fi;
       echo \$TEMP_DIR
     '
   ")
@@ -35,6 +44,7 @@ done
 echo "Temporary directory is $TEMP_DIR"
 
 for n in `seq 1 10`; do
+  echo "Attempting scp to ${REMOTE_SERVER}:${TEMP_DIR}/ (attempt $n)"
   scp -i ${SSH_KEY_LOCATION} ${SSH_OPTS} -r build ${REMOTE_SERVER}:${TEMP_DIR}/
   [[ $? -eq 0 ]] && break || if [[ $n -eq 10 ]]; then echo "ERROR: couldn't scp to $REMOTE_SERVER" && exit 1; fi;
 done
