@@ -55,7 +55,7 @@ cat <<EOF > /tmp/script
 
 # Cleanup function to remove TEMP_DIR
 cleanup() {
-  echo "Cleanup: remove TEMP_DIR"
+  echo "Cleanup: remove TEMP_DIR ${TEMP_DIR}"
   rm -rf "${TEMP_DIR}"
   echo "Cleanup: remove outdated packages"
   find /tmp -type d -ctime +2 -name 'tmp.*' -exec rm -rf {} \;
