@@ -1,54 +1,51 @@
 #!/usr/bin/env bash
 
-set -x
 echo "${SSH_KEY}" > ${SSH_KEY_LOCATION}
 chmod 600 ${SSH_KEY_LOCATION}
 SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
 
-# Generate a random suffix for uniqueness
-RANDOM_SUFFIX=$(od -x /dev/urandom | head -1 | awk '{print $2$3}')
-# Debug: Verify variables locally
+# Generate a random suffix using timestamp and RANDOM
+RANDOM_SUFFIX=$(date +%s%3N)_$RANDOM
+
+# Debug: Verify variables locally, including RANDOM_SUFFIX
 echo "Local: ${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${RANDOM_SUFFIX}"
 
 # Create base directory once
 ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} "mkdir -p /tmp/upload_to_repo_runs || exit 1"
 
 # Create TEMP_DIR with run-specific suffix
-for n in `seq 1 10`; do
-  TEMP_DIR=$(ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} "
-    GITHUB_RUN_ID=${GITHUB_RUN_ID} GITHUB_RUN_ATTEMPT=${GITHUB_RUN_ATTEMPT} RANDOM_SUFFIX=${RANDOM_SUFFIX} bash -c '
-      BASE_DIR=/tmp/upload_to_repo_runs;
-      echo \"Remote: \${GITHUB_RUN_ID}_\${GITHUB_RUN_ATTEMPT}_\${RANDOM_SUFFIX}\";
-      RUN_ID=\${GITHUB_RUN_ID}_\${GITHUB_RUN_ATTEMPT}_\${RANDOM_SUFFIX};
-      TEMP_DIR=\${BASE_DIR}/run_\${RUN_ID};
-      # Clean up previous attempts of this run (same GITHUB_RUN_ID, lower GITHUB_RUN_ATTEMPT)
-      for dir in \"\${BASE_DIR}\"/run_\${GITHUB_RUN_ID}_*; do
-        if [[ \"\$dir\" =~ run_\${GITHUB_RUN_ID}_([0-9]+)_.*\$ ]]; then
-          attempt=\"\${BASH_REMATCH[1]}\";
-          if [ \"\$attempt\" -lt \${GITHUB_RUN_ATTEMPT} ]; then
-            echo \"Removing outdated attempt directory: \$dir\";
-            rm -rf \"\$dir\";
-          fi;
+TEMP_DIR=$(ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} "
+  GITHUB_RUN_ID=${GITHUB_RUN_ID} GITHUB_RUN_ATTEMPT=${GITHUB_RUN_ATTEMPT} RANDOM_SUFFIX=${RANDOM_SUFFIX} bash -c '
+    BASE_DIR=/tmp/upload_to_repo_runs;
+    echo \"Remote: \${GITHUB_RUN_ID}_\${GITHUB_RUN_ATTEMPT}_\${RANDOM_SUFFIX}\";
+    RUN_ID=\${GITHUB_RUN_ID}_\${GITHUB_RUN_ATTEMPT}_\${RANDOM_SUFFIX};
+    TEMP_DIR=\${BASE_DIR}/run_\${RUN_ID};
+    # Clean up previous attempts of this run (same GITHUB_RUN_ID, lower GITHUB_RUN_ATTEMPT)
+    for dir in \"\${BASE_DIR}\"/run_\${GITHUB_RUN_ID}_*; do
+      if [[ \"\$dir\" =~ run_\${GITHUB_RUN_ID}_([0-9]+)_.*\$ ]]; then
+        attempt=\"\${BASH_REMATCH[1]}\";
+        if [ \"\$attempt\" -lt \${GITHUB_RUN_ATTEMPT} ]; then
+          echo \"Removing outdated attempt directory: \$dir\";
+          rm -rf \"\$dir\";
         fi;
-      done;
-      mkdir -p \$TEMP_DIR/build || { echo \"Failed to create \$TEMP_DIR/build\" >&2; exit 1; };
-      if [ -d \"\$TEMP_DIR/build\" ]; then
-        echo \"Created: \$TEMP_DIR/build\";
-      else
-        echo \"Error: \$TEMP_DIR/build not found after creation\" >&2;
-        exit 1;
       fi;
-      echo \$TEMP_DIR
-    '
-  " | tail -n 1)
-  [[ $? -eq 0 ]] && break || if [[ $n -eq 10 ]]; then echo "ERROR: couldn't set TEMP_DIR" && exit 1; fi;
-done
+    done;
+    mkdir -p \$TEMP_DIR/build || { echo \"Failed to create \$TEMP_DIR/build\" >&2; exit 1; };
+    if [ -d \"\$TEMP_DIR/build\" ]; then
+      echo \"Created: \$TEMP_DIR/build\";
+    else
+      echo \"Error: \$TEMP_DIR/build not found after creation\" >&2;
+      exit 1;
+    fi;
+    echo \$TEMP_DIR
+  '
+" | tail -n 1) || { echo "ERROR: couldn't set TEMP_DIR" && exit 1; }
 
 echo "Temporary directory is $TEMP_DIR"
 
 # Verify TEMP_DIR exists after creation
 echo "Verifying TEMP_DIR exists on remote server"
-ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} "[ -d \"$TEMP_DIR\" ] && echo \"TEMP_DIR $TEMP_DIR exists\" || echo \"TEMP_DIR $TEMP_DIR does not exist\""
+ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} "[ -d \"$TEMP_DIR\" ] && echo \"TEMP_DIR $TEMP_DIR exists\" || echo \"TEMP_DIR $TEMP_DIR does not exist\"" || exit 1
 
 for n in `seq 1 10`; do
   echo "Attempting scp to ${REMOTE_SERVER}:${TEMP_DIR}/ (attempt $n)"
@@ -89,20 +86,11 @@ EOF
 chmod +x /tmp/script
 
 script_name="/tmp/script$(date +%s%3N)_$RANDOM"
-for n in `seq 1 10`; do
-  scp -i ${SSH_KEY_LOCATION} ${SSH_OPTS} /tmp/script ${REMOTE_SERVER}:${script_name}
-  [[ $? -eq 0 ]] && break || if [[ $n -eq 10 ]]; then echo "ERROR: scp failed" && exit 1; fi;
-done
+scp -i ${SSH_KEY_LOCATION} ${SSH_OPTS} /tmp/script ${REMOTE_SERVER}:${script_name} || { echo "ERROR: couldn't scp script to $REMOTE_SERVER" && exit 1; }
 echo "Copied script to ${REMOTE_SERVER}:${script_name}"
 
-for n in `seq 1 10`; do
-  ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} ${script_name}
-  [[ $? -eq 0 ]] && break || if [[ $n -eq 10 ]]; then echo "ERROR: script failed via ssh" && exit 1; fi;
-done
+ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} ${script_name} || { echo "ERROR: script failed via ssh" && exit 1; }
 echo "Ran ${script_name} on ${REMOTE_SERVER}"
 
-for n in `seq 1 10`; do
-  ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} rm ${script_name}
-  [[ $? -eq 0 ]] && break || if [[ $n -eq 10 ]]; then echo "ERROR: failed to cleanup via ssh" && exit 1; fi;
-done
+ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} rm ${script_name} || { echo "ERROR: failed to cleanup script via ssh" && exit 1; }
 echo "Cleanup of ${script_name} finished"
