@@ -59,7 +59,7 @@ cleanup() {
   rm -rf "${TEMP_DIR}"
   echo "Cleanup: remove outdated packages"
   find /tmp -type d -ctime +2 -name 'tmp.*' -exec rm -rf {} \;
-  echo "Cleanup: End cleanup"
+  echo "Cleanup completed"
 }
 
 # Initial cd, no trap yet
