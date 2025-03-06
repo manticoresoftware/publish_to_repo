@@ -11,7 +11,7 @@ NC='\033[0m' # No Color
 
 RANDOM_SUFFIX=$(date +%s%3N)_$RANDOM
 
-echo "version #5"  # Incremented version
+echo "version #6"  # Incremented version
 echo -e "${GREEN}Local: ${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${RANDOM_SUFFIX}${NC}"
 
 # Function to retry SSH/SCP commands on network errors only
@@ -58,35 +58,50 @@ retry_cmd() {
 echo "Creating base directory /tmp/upload_to_repo_runs"
 retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} \"mkdir -p /tmp/upload_to_repo_runs || exit 1\"" "couldn't create base directory"
 
-# Create TEMP_DIR with run-specific suffix and retry
+# Create TEMP_DIR script locally
+temp_dir_script="/tmp/create_temp_dir_$$"
+cat <<EOF > "$temp_dir_script"
+#!/bin/bash
+BASE_DIR=/tmp/upload_to_repo_runs
+echo "Remote: ${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${RANDOM_SUFFIX}"
+RUN_ID=${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${RANDOM_SUFFIX}
+TEMP_DIR=\${BASE_DIR}/run_\${RUN_ID}
+for dir in "\${BASE_DIR}"/run_${GITHUB_RUN_ID}_*; do
+  if [[ "\$dir" =~ run_${GITHUB_RUN_ID}_([0-9]+)_.*$ ]]; then
+    attempt="\${BASH_REMATCH[1]}"
+    if [ "\$attempt" -lt ${GITHUB_RUN_ATTEMPT} ]; then
+      echo "Removing outdated attempt directory: \$dir"
+      rm -rf "\$dir"
+    fi
+  fi
+done
+mkdir -p \$TEMP_DIR/build || { echo "Failed to create \$TEMP_DIR/build" >&2; exit 1; }
+if [ -d "\$TEMP_DIR/build" ]; then
+  echo "Created: \$TEMP_DIR/build"
+else
+  echo "Error: \$TEMP_DIR/build not found after creation" >&2; exit 1
+fi
+echo \$TEMP_DIR
+EOF
+chmod +x "$temp_dir_script"
+
+# Send TEMP_DIR script to remote server with retry
+remote_temp_dir_script="/tmp/create_temp_dir_${RANDOM_SUFFIX}"
+echo "Sending TEMP_DIR creation script to $remote_temp_dir_script"
+retry_cmd "scp -i ${SSH_KEY_LOCATION} ${SSH_OPTS} $temp_dir_script ${REMOTE_SERVER}:${remote_temp_dir_script}" "couldn't scp TEMP_DIR script to $REMOTE_SERVER"
+
+# Execute TEMP_DIR script remotely and capture output
 echo "Creating TEMP_DIR on remote server"
-TEMP_DIR=$(retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} \"GITHUB_RUN_ID=${GITHUB_RUN_ID} GITHUB_RUN_ATTEMPT=${GITHUB_RUN_ATTEMPT} RANDOM_SUFFIX=${RANDOM_SUFFIX} bash -c '\\
-    BASE_DIR=/tmp/upload_to_repo_runs; \\
-    echo \\\"Remote: \${GITHUB_RUN_ID}_\${GITHUB_RUN_ATTEMPT}_\${RANDOM_SUFFIX}\\\"; \\
-    RUN_ID=\${GITHUB_RUN_ID}_\${GITHUB_RUN_ATTEMPT}_\${RANDOM_SUFFIX}; \\
-    TEMP_DIR=\${BASE_DIR}/run_\${RUN_ID}; \\
-    for dir in \\\"\${BASE_DIR}\\\"/run_\${GITHUB_RUN_ID}_*; do \\
-      if [[ \\\"\$dir\\\" =~ run_\${GITHUB_RUN_ID}_([0-9]+)_.*\$ ]]; then \\
-        attempt=\\\"\${BASH_REMATCH[1]}\\\"; \\
-        if [ \\\"\$attempt\\\" -lt \${GITHUB_RUN_ATTEMPT} ]; then \\
-          echo \\\"Removing outdated attempt directory: \$dir\\\"; \\
-          rm -rf \\\"\$dir\\\"; \\
-        fi; \\
-      fi; \\
-    done; \\
-    mkdir -p \$TEMP_DIR/build || { echo \\\"Failed to create \$TEMP_DIR/build\\\" >&2; exit 1; }; \\
-    if [ -d \\\"\$TEMP_DIR/build\\\" ]; then \\
-      echo \\\"Created: \$TEMP_DIR/build\\\"; \\
-    else \\
-      echo \\\"Error: \$TEMP_DIR/build not found after creation\\\" >&2; exit 1; \\
-    fi; \\
-    echo \$TEMP_DIR'\" | tail -n 1" "couldn't set TEMP_DIR")
+TEMP_DIR=$(retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} \"bash $remote_temp_dir_script\" | tail -n 1" "couldn't create TEMP_DIR")
+
+# Clean up local script
+rm -f "$temp_dir_script"
 
 # Check if TEMP_DIR is valid
 if [ -z "$TEMP_DIR" ] || [[ "$TEMP_DIR" =~ ^\"+$ ]]; then
     echo -e "${RED}ERROR: TEMP_DIR assignment failed, got '$TEMP_DIR'${NC}" >&2
     echo "Full TEMP_DIR_OUTPUT:" >&2
-    echo "$TEMP_DIR_OUTPUT" >&2
+    ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} "cat $remote_temp_dir_script" >&2
     exit 1
 fi
 echo -e "${GREEN}Temporary directory is $TEMP_DIR${NC}"
@@ -95,12 +110,13 @@ echo -e "${GREEN}Temporary directory is $TEMP_DIR${NC}"
 echo "Verifying TEMP_DIR exists on remote server"
 retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} \"[ -d \\\"$TEMP_DIR\\\" ] && echo \\\"TEMP_DIR $TEMP_DIR exists\\\" || { echo \\\"ERROR: TEMP_DIR $TEMP_DIR does not exist\\\" >&2; exit 1; }\"" "TEMP_DIR verification failed"
 
-# SCP with retry
+# SCP build directory with retry
 echo "Copying build to $TEMP_DIR"
 retry_cmd "scp -i ${SSH_KEY_LOCATION} ${SSH_OPTS} -r build ${REMOTE_SERVER}:${TEMP_DIR}/" "couldn't scp build to $REMOTE_SERVER"
 echo -e "${GREEN}Copied package to $TEMP_DIR${NC}"
 
 # Prepare the remote script
+remote_script="/tmp/script${RANDOM_SUFFIX}"
 cat <<EOF > /tmp/script
 #!/bin/bash
 
@@ -128,16 +144,14 @@ exit 0
 EOF
 chmod +x /tmp/script
 
-script_name="/tmp/script$(date +%s%3N)_$RANDOM"
-
-# SCP the script with retry
-retry_cmd "scp -i ${SSH_KEY_LOCATION} ${SSH_OPTS} /tmp/script ${REMOTE_SERVER}:${script_name}" "couldn't scp script to $REMOTE_SERVER"
-echo -e "${GREEN}Copied script to ${REMOTE_SERVER}:${script_name}${NC}"
+# SCP the remote script with retry
+retry_cmd "scp -i ${SSH_KEY_LOCATION} ${SSH_OPTS} /tmp/script ${REMOTE_SERVER}:${remote_script}" "couldn't scp script to $REMOTE_SERVER"
+echo -e "${GREEN}Copied script to ${REMOTE_SERVER}:${remote_script}${NC}"
 
 # Run the script with retry
-retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} ${script_name}" "script failed via ssh"
-echo -e "${GREEN}Ran ${script_name} on ${REMOTE_SERVER}${NC}"
+retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} ${remote_script}" "script failed via ssh"
+echo -e "${GREEN}Ran ${remote_script} on ${REMOTE_SERVER}${NC}"
 
 # Cleanup with retry
-retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} rm ${script_name}" "failed to cleanup script via ssh"
-echo -e "${GREEN}Cleanup of ${script_name} completed${NC}"
+retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} \"rm -f ${remote_script} ${remote_temp_dir_script}\"" "failed to cleanup scripts via ssh"
+echo -e "${GREEN}Cleanup of ${remote_script} and ${remote_temp_dir_script} completed${NC}"
