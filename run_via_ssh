@@ -4,7 +4,6 @@ echo "${SSH_KEY}" > ${SSH_KEY_LOCATION}
 chmod 600 ${SSH_KEY_LOCATION}
 SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
 
-echo "version #2"
 # Define colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -12,6 +11,7 @@ NC='\033[0m' # No Color
 
 RANDOM_SUFFIX=$(date +%s%3N)_$RANDOM
 
+echo "version #2"  # Matching your latest log
 echo -e "${GREEN}Local: ${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${RANDOM_SUFFIX}${NC}"
 
 # Function to retry SSH/SCP commands on network errors only
@@ -33,7 +33,6 @@ retry_cmd() {
             return 0
         fi
 
-        # Check if it's a network error (e.g., exit code 255 or specific messages)
         if [ $exit_code -eq 255 ] || grep -qE "Connection reset by peer|Connection closed|Connection timed out|ssh:.*failed|scp:.*failed" temp_err; then
             if [ $attempt -eq $max_attempts ]; then
                 echo -e "${RED}ERROR: $error_msg after $max_attempts network-related attempts${NC}" >&2
@@ -45,7 +44,6 @@ retry_cmd() {
             cat temp_err >&2
             sleep 2
         else
-            # Non-network error (e.g., script failure), fail immediately
             echo -e "${RED}ERROR: $error_msg (non-network error, exit $exit_code)${NC}" >&2
             echo "$output" >&2
             cat temp_err >&2
@@ -62,8 +60,7 @@ retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} \"mkdir -p /t
 
 # Create TEMP_DIR with run-specific suffix and retry
 echo "Creating TEMP_DIR on remote server"
-TEMP_DIR_OUTPUT=$(retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} \"
-  GITHUB_RUN_ID=${GITHUB_RUN_ID} GITHUB_RUN_ATTEMPT=${GITHUB_RUN_ATTEMPT} RANDOM_SUFFIX=${RANDOM_SUFFIX} bash -c \\\"\\
+TEMP_DIR_OUTPUT=$(retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} \"GITHUB_RUN_ID=${GITHUB_RUN_ID} GITHUB_RUN_ATTEMPT=${GITHUB_RUN_ATTEMPT} RANDOM_SUFFIX=${RANDOM_SUFFIX} bash -c \\\"\\
     BASE_DIR=/tmp/upload_to_repo_runs; \\
     echo Remote: \\\${GITHUB_RUN_ID}_\\\${GITHUB_RUN_ATTEMPT}_\\\${RANDOM_SUFFIX}; \\
     RUN_ID=\\\${GITHUB_RUN_ID}_\\\${GITHUB_RUN_ATTEMPT}_\\\${RANDOM_SUFFIX}; \\
@@ -83,10 +80,16 @@ TEMP_DIR_OUTPUT=$(retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SER
     else \\
       echo Error: \\\$TEMP_DIR/build not found after creation >&2; exit 1; \\
     fi; \\
-    echo \\\$TEMP_DIR\\\"
-\"")
+    echo \\\$TEMP_DIR\\\"\"")
 TEMP_DIR=$(echo "$TEMP_DIR_OUTPUT" | tail -n 1)
 
+# Check if TEMP_DIR is valid
+if [ -z "$TEMP_DIR" ] || [[ "$TEMP_DIR" =~ ^\"+$ ]]; then
+    echo -e "${RED}ERROR: TEMP_DIR assignment failed, got '$TEMP_DIR'${NC}" >&2
+    echo "Full TEMP_DIR_OUTPUT:" >&2
+    echo "$TEMP_DIR_OUTPUT" >&2
+    exit 1
+fi
 echo -e "${GREEN}Temporary directory is $TEMP_DIR${NC}"
 
 # Verify TEMP_DIR exists with retry
@@ -111,10 +114,7 @@ cleanup() {
   echo "Cleanup completed"
 }
 
-# Initial cd, no trap yet
 cd "${TEMP_DIR}" || exit 1
-
-# Set trap after successful cd
 trap cleanup EXIT INT TERM HUP
 
 echo "Downloading https://raw.githubusercontent.com/manticoresoftware/publish_to_repo/main/upload_repo_${TYPE} to script"
