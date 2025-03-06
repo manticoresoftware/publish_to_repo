@@ -24,12 +24,24 @@ retry_cmd() {
 
     while [ $attempt -le $max_attempts ]; do
         echo "Attempt $attempt: $cmd"
-        output=$(eval "$cmd 2>temp_err" | grep '^TEMP_DIR_PATH:' | cut -d' ' -f2-)
+        output=$(eval "$cmd" 2>temp_err)
         exit_code=$?
-        if [ $exit_code -eq 0 ] && [ -n "$output" ]; then
-            echo "$output"  # Print successful output
-            rm -f temp_err
-            return 0
+        if [ $exit_code -eq 0 ]; then
+            # Filter TEMP_DIR_PATH if present, otherwise use raw output
+            filtered_output=$(echo "$output" | grep '^TEMP_DIR_PATH:' | cut -d' ' -f2-)
+            if [ -n "$filtered_output" ]; then
+                echo "$filtered_output"
+                rm -f temp_err
+                return 0
+            elif [ "$error_msg" != "couldn't set TEMP_DIR" ]; then
+                echo "$output"
+                rm -f temp_err
+                return 0
+            else
+                echo -e "${RED}ERROR: No TEMP_DIR_PATH found in output${NC}" >&2
+                echo "$output" >&2
+                exit_code=1  # Force failure if TEMP_DIR_PATH is expected but missing
+            fi
         fi
 
         # Check if it's a network error (e.g., exit code 255 or specific messages)
@@ -46,7 +58,7 @@ retry_cmd() {
         else
             # Non-network error (e.g., script failure), fail immediately
             echo -e "${RED}ERROR: $error_msg (non-network error, exit $exit_code)${NC}" >&2
-            echo "$output" >&2  # Show script output if any
+            echo "$output" >&2
             cat temp_err >&2
             rm -f temp_err
             exit $exit_code
@@ -81,7 +93,7 @@ TEMP_DIR=$(retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} \"
       echo \\\"Error: \\\$TEMP_DIR/build not found after creation\\\" >&2; \
       exit 1; \
     fi; \
-    echo \\\"TEMP_DIR_PATH: \\\$TEMP_DIR\\\"'\"")
+    echo \\\"TEMP_DIR_PATH: \\\$TEMP_DIR\\\"'\"" "couldn't set TEMP_DIR")
 
 # Check if TEMP_DIR is empty or invalid
 if [ -z "$TEMP_DIR" ] || [[ "$TEMP_DIR" =~ ^/run_ ]]; then
