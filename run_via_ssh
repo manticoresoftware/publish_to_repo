@@ -11,7 +11,7 @@ NC='\033[0m' # No Color
 
 RANDOM_SUFFIX=$(date +%s%3N)_$RANDOM
 
-echo "version #8"  # Incremented version
+echo "version #9"  # Incremented version
 echo -e "${GREEN}Local: ${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${RANDOM_SUFFIX}${NC}"
 
 # Function to retry SSH/SCP commands on network errors only
@@ -119,12 +119,14 @@ remote_script="/tmp/script${RANDOM_SUFFIX}"
 cat <<EOF > /tmp/script
 #!/bin/bash
 
+# Force line buffering for output
+stdbuf -oL -eL bash -c '
 # Cleanup function to remove TEMP_DIR
 cleanup() {
   echo "Cleanup: remove TEMP_DIR ${TEMP_DIR}"
   rm -rf "${TEMP_DIR}"
   echo "Cleanup: remove outdated packages"
-  find /tmp -type d -ctime +2 -name 'tmp.*' -exec rm -rf {} \;
+  find /tmp -type d -ctime +2 -name "tmp.*" -exec rm -rf {} \;
   echo "Cleanup completed"
 }
 
@@ -144,6 +146,7 @@ if [ "\$EXIT_CODE" -ne 0 ]; then
 fi
 echo "upload_repo_${TYPE} completed successfully"
 exit 0
+'
 EOF
 chmod +x /tmp/script
 
@@ -153,6 +156,7 @@ echo -e "${GREEN}Copied script to ${REMOTE_SERVER}:${remote_script}${NC}"
 
 # Run the script with retry
 echo "Executing remote script ${remote_script}"
+echo "Waiting for remote script to complete (this may take a few minutes)..."
 retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} ${remote_script}" "script failed via ssh"
 echo -e "${GREEN}Ran ${remote_script} on ${REMOTE_SERVER}${NC}"
 
