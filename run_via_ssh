@@ -29,29 +29,29 @@ rm -f temp_err
 
 # Create TEMP_DIR with run-specific suffix
 echo "Creating TEMP_DIR on remote server"
-TEMP_DIR_CMD="ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} \"bash -c \\\"\
-    BASE_DIR=/tmp/upload_to_repo_runs; \
-    echo Remote: ${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${RANDOM_SUFFIX}; \
-    RUN_ID=${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${RANDOM_SUFFIX}; \
-    TEMP_DIR=\\\${BASE_DIR}/run_\\\${RUN_ID}; \
-    for dir in \\\${BASE_DIR}/run_${GITHUB_RUN_ID}_*; do \
-      if [[ \\\$dir =~ run_${GITHUB_RUN_ID}_([0-9]+)_.* ]]; then \
-        attempt=\\\${BASH_REMATCH[1]}; \
-        if [ \\\$attempt -lt ${GITHUB_RUN_ATTEMPT} ]; then \
-          echo Removing outdated attempt directory: \\\$dir; \
-          rm -rf \\\$dir; \
-        fi; \
-      fi; \
-    done; \
-    mkdir -p \\\${TEMP_DIR}/build || { echo Failed to create \\\${TEMP_DIR}/build >&2; exit 1; }; \
-    if [ -d \\\${TEMP_DIR}/build ]; then \
-      echo Created: \\\${TEMP_DIR}/build; \
-    else \
-      echo Error: \\\${TEMP_DIR}/build not found after creation >&2; \
-      exit 1; \
-    fi; \
-    echo \\\${TEMP_DIR} > /tmp/temp_dir_debug_\\\${RUN_ID}; \
-    echo TEMP_DIR_PATH: \\\${TEMP_DIR}\\\"\""
+TEMP_DIR_CMD="ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} \"bash -c \\\"\\
+    BASE_DIR=/tmp/upload_to_repo_runs; \\
+    echo Remote: ${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${RANDOM_SUFFIX}; \\
+    RUN_ID=${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${RANDOM_SUFFIX}; \\
+    TEMP_DIR=\\\$BASE_DIR/run_\\\$RUN_ID; \\
+    for dir in \\\$BASE_DIR/run_${GITHUB_RUN_ID}_*; do \\
+      if [[ \\\$dir =~ run_${GITHUB_RUN_ID}_([0-9]+)_.* ]]; then \\
+        attempt=\\\$BASH_REMATCH[1]; \\
+        if [ \\\$attempt -lt ${GITHUB_RUN_ATTEMPT} ]; then \\
+          echo Removing outdated attempt directory: \\\$dir; \\
+          rm -rf \\\$dir; \\
+        fi; \\
+      fi; \\
+    done; \\
+    mkdir -p \\\$TEMP_DIR/build || { echo Failed to create \\\$TEMP_DIR/build >&2; exit 1; }; \\
+    if [ -d \\\$TEMP_DIR/build ]; then \\
+      echo Created: \\\$TEMP_DIR/build; \\
+    else \\
+      echo Error: \\\$TEMP_DIR/build not found after creation >&2; \\
+      exit 1; \\
+    fi; \\
+    echo \\\$TEMP_DIR > /tmp/temp_dir_debug_\\\$RUN_ID; \\
+    echo TEMP_DIR_PATH: \\\$TEMP_DIR\\\"\""
 echo "Executing: $TEMP_DIR_CMD"
 TEMP_DIR_OUTPUT=$(eval "$TEMP_DIR_CMD" 2>temp_err)
 EXIT_CODE=$?
