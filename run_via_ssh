@@ -8,46 +8,84 @@ RANDOM_SUFFIX=$(date +%s%3N)_$RANDOM
 
 echo "Local: ${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${RANDOM_SUFFIX}"
 
-ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} "mkdir -p /tmp/upload_to_repo_runs || exit 1"
+# Function to retry SSH/SCP commands on network errors only
+retry_cmd() {
+    local cmd="$1"
+    local error_msg="$2"
+    local max_attempts=5
+    local attempt=1
+    local exit_code
+    local output
 
-TEMP_DIR=$(ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} "
+    while [ $attempt -le $max_attempts ]; do
+        echo "Attempt $attempt: $cmd"
+        output=$(eval "$cmd" 2>temp_err)
+        exit_code=$?
+        if [ $exit_code -eq 0 ]; then
+            echo "$output"  # Print successful output
+            rm -f temp_err
+            return 0
+        fi
+
+        # Check if it's a network error (e.g., exit code 255 or specific messages)
+        if [ $exit_code -eq 255 ] || grep -qE "Connection reset by peer|Connection closed|Connection timed out|ssh:.*failed|scp:.*failed" temp_err; then
+            if [ $attempt -eq $max_attempts ]; then
+                echo "ERROR: $error_msg after $max_attempts network-related attempts" >&2
+                cat temp_err >&2
+                rm -f temp_err
+                exit 1
+            fi
+            echo "Network error detected (exit $exit_code), retrying in 2s..." >&2
+            cat temp_err >&2
+            sleep 2
+        else
+            # Non-network error (e.g., script failure), fail immediately
+            echo "ERROR: $error_msg (non-network error, exit $exit_code)" >&2
+            echo "$output" >&2  # Show script output if any
+            cat temp_err >&2
+            rm -f temp_err
+            exit $exit_code
+        fi
+        ((attempt++))
+    done
+}
+
+# Create base directory once
+retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} \"mkdir -p /tmp/upload_to_repo_runs || exit 1\"" "couldn't create base directory"
+
+# Create TEMP_DIR with run-specific suffix
+TEMP_DIR=$(retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} \"
   GITHUB_RUN_ID=${GITHUB_RUN_ID} GITHUB_RUN_ATTEMPT=${GITHUB_RUN_ATTEMPT} RANDOM_SUFFIX=${RANDOM_SUFFIX} bash -c '
     BASE_DIR=/tmp/upload_to_repo_runs;
-    echo \"Remote: \${GITHUB_RUN_ID}_\${GITHUB_RUN_ATTEMPT}_\${RANDOM_SUFFIX}\";
+    echo \\\"Remote: \${GITHUB_RUN_ID}_\${GITHUB_RUN_ATTEMPT}_\${RANDOM_SUFFIX}\\\";
     RUN_ID=\${GITHUB_RUN_ID}_\${GITHUB_RUN_ATTEMPT}_\${RANDOM_SUFFIX};
     TEMP_DIR=\${BASE_DIR}/run_\${RUN_ID};
-    # Clean up previous attempts of this run (same GITHUB_RUN_ID, lower GITHUB_RUN_ATTEMPT)
-    for dir in \"\${BASE_DIR}\"/run_\${GITHUB_RUN_ID}_*; do
-      if [[ \"\$dir\" =~ run_\${GITHUB_RUN_ID}_([0-9]+)_.*\$ ]]; then
-        attempt=\"\${BASH_REMATCH[1]}\";
-        if [ \"\$attempt\" -lt \${GITHUB_RUN_ATTEMPT} ]; then
-          echo \"Removing outdated attempt directory: \$dir\";
-          rm -rf \"\$dir\";
+    for dir in \\\"\${BASE_DIR}\\\"/run_\${GITHUB_RUN_ID}_*; do
+      if [[ \\\"\\\$dir\\\" =~ run_\${GITHUB_RUN_ID}_([0-9]+)_.*\\\$ ]]; then
+        attempt=\\\"\\\${BASH_REMATCH[1]}\\\";
+        if [ \\\"\\\$attempt\\\" -lt \${GITHUB_RUN_ATTEMPT} ]; then
+          echo \\\"Removing outdated attempt directory: \\\$dir\\\";
+          rm -rf \\\"\\\$dir\\\";
         fi;
       fi;
     done;
-    mkdir -p \$TEMP_DIR/build || { echo \"Failed to create \$TEMP_DIR/build\" >&2; exit 1; };
-    if [ -d \"\$TEMP_DIR/build\" ]; then
-      echo \"Created: \$TEMP_DIR/build\";
+    mkdir -p \\\$TEMP_DIR/build || { echo \\\"Failed to create \\\$TEMP_DIR/build\\\" >&2; exit 1; };
+    if [ -d \\\"\\\$TEMP_DIR/build\\\" ]; then
+      echo \\\"Created: \\\$TEMP_DIR/build\\\";
     else
-      echo \"Error: \$TEMP_DIR/build not found after creation\" >&2;
+      echo \\\"Error: \\\$TEMP_DIR/build not found after creation\\\" >&2;
       exit 1;
     fi;
-    echo \$TEMP_DIR
+    echo \\\$TEMP_DIR
   '
-" | tail -n 1) || { echo "ERROR: couldn't set TEMP_DIR" && exit 1; }
+\" | tail -n 1" "couldn't set TEMP_DIR")
 
 echo "Temporary directory is $TEMP_DIR"
 
 echo "Verifying TEMP_DIR exists on remote server"
-ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} "[ -d \"$TEMP_DIR\" ] && echo \"TEMP_DIR $TEMP_DIR exists\" || echo \"ERROR: TEMP_DIR $TEMP_DIR does not exist\"" || exit 1
+retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} \"[ -d \\\"$TEMP_DIR\\\" ] && echo \\\"TEMP_DIR $TEMP_DIR exists\\\" || echo \\\"ERROR: TEMP_DIR $TEMP_DIR does not exist\\\"\"" "TEMP_DIR verification failed"
 
-for n in `seq 1 10`; do
-  echo "Attempting scp to ${REMOTE_SERVER}:${TEMP_DIR}/ (attempt $n)"
-  scp -i ${SSH_KEY_LOCATION} ${SSH_OPTS} -r build ${REMOTE_SERVER}:${TEMP_DIR}/
-  [[ $? -eq 0 ]] && break || if [[ $n -eq 10 ]]; then echo "ERROR: couldn't scp to $REMOTE_SERVER" && exit 1; fi;
-done
-
+retry_cmd "scp -i ${SSH_KEY_LOCATION} ${SSH_OPTS} -r build ${REMOTE_SERVER}:${TEMP_DIR}/" "couldn't scp build to $REMOTE_SERVER"
 echo "Copied package to $TEMP_DIR"
 
 cat <<EOF > /tmp/script
@@ -62,14 +100,11 @@ cleanup() {
   echo "Cleanup completed"
 }
 
-# Initial cd, no trap yet
 cd "${TEMP_DIR}" || exit 1
-
-# Set trap after successful cd
 trap cleanup EXIT INT TERM HUP
 
-echo "Downloading https://raw.githubusercontent.com/manticoresoftware/publish_to_repo/main/upload_repo_${TYPE} to script"
-curl -sSL "https://raw.githubusercontent.com/manticoresoftware/publish_to_repo/main/upload_repo_${TYPE}" > script || exit 1
+echo "Downloading https://raw.githubusercontent.com/manticoresoftware/publish_to_repo/debug/upload_repo_${TYPE} to script"
+curl -sSL "https://raw.githubusercontent.com/manticoresoftware/publish_to_repo/debug/upload_repo_${TYPE}" > script || exit 1
 chmod +x script
 DISTRO="${DISTR}" DIGIT_DELIMITER2="${DELIMITER}" TARGET="${TARGET}" DRY_RUN="${DRY_RUN}" ./script
 EXIT_CODE=\$?  # Capture exit status
@@ -81,11 +116,11 @@ EOF
 chmod +x /tmp/script
 
 script_name="/tmp/script$(date +%s%3N)_$RANDOM"
-scp -i ${SSH_KEY_LOCATION} ${SSH_OPTS} /tmp/script ${REMOTE_SERVER}:${script_name} || { echo "ERROR: couldn't scp script to $REMOTE_SERVER" && exit 1; }
+retry_cmd "scp -i ${SSH_KEY_LOCATION} ${SSH_OPTS} /tmp/script ${REMOTE_SERVER}:${script_name}" "couldn't scp script to $REMOTE_SERVER"
 echo "Copied script to ${REMOTE_SERVER}:${script_name}"
 
-ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} ${script_name} || { echo "ERROR: script failed via ssh" && exit 1; }
+retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} ${script_name}" "script failed via ssh"
 echo "Ran ${script_name} on ${REMOTE_SERVER}"
 
-ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} rm ${script_name} || { echo "ERROR: failed to cleanup script via ssh" && exit 1; }
+retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} rm ${script_name}" "failed to cleanup script via ssh"
 echo "Cleanup of ${script_name} completed"
