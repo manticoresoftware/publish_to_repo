@@ -11,7 +11,7 @@ NC='\033[0m' # No Color
 
 RANDOM_SUFFIX=$(date +%s%3N)_$RANDOM
 
-echo "version #10"  # Incremented version
+echo "version #11"  # Incremented version
 echo -e "${GREEN}Local: ${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${RANDOM_SUFFIX}${NC}"
 
 # Function to retry SSH/SCP commands on network errors only
@@ -24,7 +24,7 @@ retry_cmd() {
 
     while [ $attempt -le $max_attempts ]; do
         echo "Attempt $attempt: $cmd"
-        # Execute directly instead of using eval, redirect stderr to temp file
+        # Execute directly, redirect stderr to temp file
         $cmd 2>temp_err
         exit_code=$?
         if [ $exit_code -eq 0 ]; then
@@ -52,9 +52,9 @@ retry_cmd() {
     done
 }
 
-# Create base directory with retry
+# Create base directory with retry, explicitly using bash
 echo "Creating base directory /tmp/upload_to_repo_runs"
-retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} \"mkdir -p /tmp/upload_to_repo_runs || exit 1\"" "couldn't create base directory"
+retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} \"bash -c 'mkdir -p /tmp/upload_to_repo_runs || exit 1'\"" "couldn't create base directory"
 
 # Create TEMP_DIR script locally
 temp_dir_script="/tmp/create_temp_dir_$$"
