@@ -11,7 +11,7 @@ NC='\033[0m' # No Color
 
 RANDOM_SUFFIX=$(date +%s%3N)_$RANDOM
 
-echo "version #7"  # Incremented version
+echo "version #8"  # Incremented version
 echo -e "${GREEN}Local: ${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${RANDOM_SUFFIX}${NC}"
 
 # Function to retry SSH/SCP commands on network errors only
@@ -128,17 +128,21 @@ cleanup() {
   echo "Cleanup completed"
 }
 
-cd "${TEMP_DIR}" || exit 1
+echo "Starting remote script execution"
+cd "${TEMP_DIR}" || { echo "Failed to cd to ${TEMP_DIR}" >&2; exit 1; }
 trap cleanup EXIT INT TERM HUP
 
 echo "Downloading https://raw.githubusercontent.com/manticoresoftware/publish_to_repo/main/upload_repo_${TYPE} to script"
-curl -sSL "https://raw.githubusercontent.com/manticoresoftware/publish_to_repo/main/upload_repo_${TYPE}" > script || exit 1
+curl -sSL "https://raw.githubusercontent.com/manticoresoftware/publish_to_repo/main/upload_repo_${TYPE}" > script || { echo "Failed to download upload_repo_${TYPE}" >&2; exit 1; }
 chmod +x script
+echo "Running upload_repo_${TYPE} script"
 DISTRO="${DISTR}" DIGIT_DELIMITER2="${DELIMITER}" TARGET="${TARGET}" DRY_RUN="${DRY_RUN}" ./script
 EXIT_CODE=\$?  # Capture exit status
 if [ "\$EXIT_CODE" -ne 0 ]; then
+  echo "upload_repo_${TYPE} failed with exit code \$EXIT_CODE" >&2
   exit "\$EXIT_CODE"
 fi
+echo "upload_repo_${TYPE} completed successfully"
 exit 0
 EOF
 chmod +x /tmp/script
@@ -148,6 +152,7 @@ retry_cmd "scp -i ${SSH_KEY_LOCATION} ${SSH_OPTS} /tmp/script ${REMOTE_SERVER}:$
 echo -e "${GREEN}Copied script to ${REMOTE_SERVER}:${remote_script}${NC}"
 
 # Run the script with retry
+echo "Executing remote script ${remote_script}"
 retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} ${remote_script}" "script failed via ssh"
 echo -e "${GREEN}Ran ${remote_script} on ${REMOTE_SERVER}${NC}"
 
