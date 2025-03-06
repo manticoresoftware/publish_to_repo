@@ -4,9 +4,14 @@ echo "${SSH_KEY}" > ${SSH_KEY_LOCATION}
 chmod 600 ${SSH_KEY_LOCATION}
 SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
 
+# Define colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+NC='\033[0m' # No Color
+
 RANDOM_SUFFIX=$(date +%s%3N)_$RANDOM
 
-echo "Local: ${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${RANDOM_SUFFIX}"
+echo -e "${GREEN}Local: ${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${RANDOM_SUFFIX}${NC}"
 
 # Function to retry SSH/SCP commands on network errors only
 retry_cmd() {
@@ -30,17 +35,17 @@ retry_cmd() {
         # Check if it's a network error (e.g., exit code 255 or specific messages)
         if [ $exit_code -eq 255 ] || grep -qE "Connection reset by peer|Connection closed|Connection timed out|ssh:.*failed|scp:.*failed" temp_err; then
             if [ $attempt -eq $max_attempts ]; then
-                echo "ERROR: $error_msg after $max_attempts network-related attempts" >&2
+                echo -e "${RED}ERROR: $error_msg after $max_attempts network-related attempts${NC}" >&2
                 cat temp_err >&2
                 rm -f temp_err
                 exit 1
             fi
-            echo "Network error detected (exit $exit_code), retrying in 2s..." >&2
+            echo -e "${RED}Network error detected (exit $exit_code), retrying in 2s...${NC}" >&2
             cat temp_err >&2
             sleep 2
         else
             # Non-network error (e.g., script failure), fail immediately
-            echo "ERROR: $error_msg (non-network error, exit $exit_code)" >&2
+            echo -e "${RED}ERROR: $error_msg (non-network error, exit $exit_code)${NC}" >&2
             echo "$output" >&2  # Show script output if any
             cat temp_err >&2
             rm -f temp_err
@@ -80,35 +85,41 @@ TEMP_DIR=$(retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} \"
   '
 \" | tail -n 1" "couldn't set TEMP_DIR")
 
-echo "Temporary directory is $TEMP_DIR"
+echo -e "${GREEN}Temporary directory is $TEMP_DIR${NC}"
 
 echo "Verifying TEMP_DIR exists on remote server"
 retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} \"[ -d \\\"$TEMP_DIR\\\" ] && echo \\\"TEMP_DIR $TEMP_DIR exists\\\" || echo \\\"ERROR: TEMP_DIR $TEMP_DIR does not exist\\\"\"" "TEMP_DIR verification failed"
 
 retry_cmd "scp -i ${SSH_KEY_LOCATION} ${SSH_OPTS} -r build ${REMOTE_SERVER}:${TEMP_DIR}/" "couldn't scp build to $REMOTE_SERVER"
-echo "Copied package to $TEMP_DIR"
+echo -e "${GREEN}Copied package to $TEMP_DIR${NC}"
 
 cat <<EOF > /tmp/script
 #!/bin/bash
 
+# Define colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+NC='\033[0m' # No Color
+
 # Cleanup function to remove TEMP_DIR
 cleanup() {
-  echo "Cleanup: remove TEMP_DIR ${TEMP_DIR}"
+  echo -e "\${GREEN}Cleanup: remove TEMP_DIR ${TEMP_DIR}\${NC}"
   rm -rf "${TEMP_DIR}"
-  echo "Cleanup: remove outdated packages"
+  echo -e "\${GREEN}Cleanup: remove outdated packages\${NC}"
   find /tmp -type d -ctime +2 -name 'tmp.*' -exec rm -rf {} \;
-  echo "Cleanup completed"
+  echo -e "\${GREEN}Cleanup completed\${NC}"
 }
 
-cd "${TEMP_DIR}" || exit 1
+cd "${TEMP_DIR}" || { echo -e "\${RED}ERROR: Failed to cd to ${TEMP_DIR}\${NC}" >&2; exit 1; }
 trap cleanup EXIT INT TERM HUP
 
-echo "Downloading https://raw.githubusercontent.com/manticoresoftware/publish_to_repo/debug/upload_repo_${TYPE} to script"
-curl -sSL "https://raw.githubusercontent.com/manticoresoftware/publish_to_repo/debug/upload_repo_${TYPE}" > script || exit 1
+echo -e "\${GREEN}Downloading https://raw.githubusercontent.com/manticoresoftware/publish_to_repo/main/upload_repo_${TYPE} to script\${NC}"
+curl -sSL "https://raw.githubusercontent.com/manticoresoftware/publish_to_repo/main/upload_repo_${TYPE}" > script || { echo -e "\${RED}ERROR: Failed to download upload_repo_${TYPE}\${NC}" >&2; exit 1; }
 chmod +x script
 DISTRO="${DISTR}" DIGIT_DELIMITER2="${DELIMITER}" TARGET="${TARGET}" DRY_RUN="${DRY_RUN}" ./script
 EXIT_CODE=\$?  # Capture exit status
 if [ "\$EXIT_CODE" -ne 0 ]; then
+  echo -e "\${RED}ERROR: upload_repo_${TYPE} failed with exit code \$EXIT_CODE\${NC}" >&2
   exit "\$EXIT_CODE"
 fi
 exit 0
@@ -117,10 +128,10 @@ chmod +x /tmp/script
 
 script_name="/tmp/script$(date +%s%3N)_$RANDOM"
 retry_cmd "scp -i ${SSH_KEY_LOCATION} ${SSH_OPTS} /tmp/script ${REMOTE_SERVER}:${script_name}" "couldn't scp script to $REMOTE_SERVER"
-echo "Copied script to ${REMOTE_SERVER}:${script_name}"
+echo -e "${GREEN}Copied script to ${REMOTE_SERVER}:${script_name}${NC}"
 
 retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} ${script_name}" "script failed via ssh"
-echo "Ran ${script_name} on ${REMOTE_SERVER}"
+echo -e "${GREEN}Ran ${script_name} on ${REMOTE_SERVER}${NC}"
 
 retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} rm ${script_name}" "failed to cleanup script via ssh"
-echo "Cleanup of ${script_name} completed"
+echo -e "${GREEN}Cleanup of ${script_name} completed${NC}"
