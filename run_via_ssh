@@ -11,6 +11,7 @@ NC='\033[0m' # No Color
 
 RANDOM_SUFFIX=$(date +%s%3N)_$RANDOM
 
+echo "UUuupdated"
 echo -e "${GREEN}Local: ${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${RANDOM_SUFFIX}${NC}"
 
 # Create base directory
