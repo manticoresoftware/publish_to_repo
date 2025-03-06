@@ -24,9 +24,9 @@ retry_cmd() {
 
     while [ $attempt -le $max_attempts ]; do
         echo "Attempt $attempt: $cmd"
-        output=$(eval "$cmd 2>temp_err")
+        output=$(eval "$cmd 2>temp_err" | grep '^TEMP_DIR_PATH:' | cut -d' ' -f2-)
         exit_code=$?
-        if [ $exit_code -eq 0 ]; then
+        if [ $exit_code -eq 0 ] && [ -n "$output" ]; then
             echo "$output"  # Print successful output
             rm -f temp_err
             return 0
@@ -58,7 +58,7 @@ retry_cmd() {
 # Create base directory once
 retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} \"mkdir -p /tmp/upload_to_repo_runs || exit 1\"" "couldn't create base directory"
 
-# Create TEMP_DIR with run-specific suffix (fixed output capture)
+# Create TEMP_DIR with run-specific suffix
 echo "Creating TEMP_DIR on remote server"
 TEMP_DIR=$(retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} \"bash -c '\
     BASE_DIR=/tmp/upload_to_repo_runs; \
@@ -81,13 +81,13 @@ TEMP_DIR=$(retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} \"
       echo \\\"Error: \\\$TEMP_DIR/build not found after creation\\\" >&2; \
       exit 1; \
     fi; \
-    echo \\\"TEMP_DIR_PATH: \\\$TEMP_DIR\\\"'\" 2>/tmp/temp_dir_err | grep '^TEMP_DIR_PATH:' | cut -d' ' -f2-")
+    echo \\\"TEMP_DIR_PATH: \\\$TEMP_DIR\\\"'\"")
 
 # Check if TEMP_DIR is empty or invalid
 if [ -z "$TEMP_DIR" ] || [[ "$TEMP_DIR" =~ ^/run_ ]]; then
     echo -e "${RED}ERROR: TEMP_DIR assignment failed, got '$TEMP_DIR'${NC}" >&2
-    cat /tmp/temp_dir_err >&2
-    rm -f /tmp/temp_dir_err
+    cat temp_err >&2
+    rm -f temp_err
     exit 1
 fi
 echo -e "${GREEN}Temporary directory is $TEMP_DIR${NC}"
