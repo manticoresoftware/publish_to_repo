@@ -24,7 +24,7 @@ retry_cmd() {
 
     while [ $attempt -le $max_attempts ]; do
         echo "Attempt $attempt: $cmd"
-        output=$(eval "$cmd" 2>temp_err)
+        output=$(eval "$cmd 2>temp_err")
         exit_code=$?
         if [ $exit_code -eq 0 ]; then
             echo "$output"  # Print successful output
@@ -58,7 +58,7 @@ retry_cmd() {
 # Create base directory once
 retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} \"mkdir -p /tmp/upload_to_repo_runs || exit 1\"" "couldn't create base directory"
 
-# Create TEMP_DIR with run-specific suffix (fixed quoting)
+# Create TEMP_DIR with run-specific suffix (fixed output capture)
 TEMP_DIR=$(retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} \"bash -c '\
     BASE_DIR=/tmp/upload_to_repo_runs; \
     echo \\\"Remote: ${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${RANDOM_SUFFIX}\\\"; \
@@ -80,7 +80,7 @@ TEMP_DIR=$(retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} \"
       echo \\\"Error: \\\$TEMP_DIR/build not found after creation\\\" >&2; \
       exit 1; \
     fi; \
-    echo \\\$TEMP_DIR'\" | tail -n 1" "couldn't set TEMP_DIR")
+    echo \\\$TEMP_DIR'\"" "couldn't set TEMP_DIR" | tail -n 1)
 
 echo -e "${GREEN}Temporary directory is $TEMP_DIR${NC}"
 
