@@ -4,6 +4,7 @@ echo "${SSH_KEY}" > ${SSH_KEY_LOCATION}
 chmod 600 ${SSH_KEY_LOCATION}
 SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
 
+echo "version #2"
 # Define colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
