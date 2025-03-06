@@ -27,21 +27,9 @@ retry_cmd() {
         output=$(eval "$cmd" 2>temp_err)
         exit_code=$?
         if [ $exit_code -eq 0 ]; then
-            # Filter TEMP_DIR_PATH if present, otherwise use raw output
-            filtered_output=$(echo "$output" | grep '^TEMP_DIR_PATH:' | cut -d' ' -f2-)
-            if [ -n "$filtered_output" ]; then
-                echo "$filtered_output"
-                rm -f temp_err
-                return 0
-            elif [ "$error_msg" != "couldn't set TEMP_DIR" ]; then
-                echo "$output"
-                rm -f temp_err
-                return 0
-            else
-                echo -e "${RED}ERROR: No TEMP_DIR_PATH found in output${NC}" >&2
-                echo "$output" >&2
-                exit_code=1  # Force failure if TEMP_DIR_PATH is expected but missing
-            fi
+            echo "$output"
+            rm -f temp_err
+            return 0
         fi
 
         # Check if it's a network error (e.g., exit code 255 or specific messages)
@@ -72,7 +60,7 @@ retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} \"mkdir -p /t
 
 # Create TEMP_DIR with run-specific suffix
 echo "Creating TEMP_DIR on remote server"
-TEMP_DIR=$(retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} \"bash -c '\
+TEMP_DIR_OUTPUT=$(retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} \"bash -c '\
     BASE_DIR=/tmp/upload_to_repo_runs; \
     echo \\\"Remote: ${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${RANDOM_SUFFIX}\\\"; \
     RUN_ID=${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${RANDOM_SUFFIX}; \
@@ -94,10 +82,13 @@ TEMP_DIR=$(retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} \"
       exit 1; \
     fi; \
     echo \\\"TEMP_DIR_PATH: \\\$TEMP_DIR\\\"'\"" "couldn't set TEMP_DIR")
+TEMP_DIR=$(echo "$TEMP_DIR_OUTPUT" | grep '^TEMP_DIR_PATH:' | cut -d' ' -f2-)
 
 # Check if TEMP_DIR is empty or invalid
-if [ -z "$TEMP_DIR" ] || [[ "$TEMP_DIR" =~ ^/run_ ]]; then
+if [ -z "$TEMP_DIR" ] || echo "$TEMP_DIR" | grep -q '^/run_'; then
     echo -e "${RED}ERROR: TEMP_DIR assignment failed, got '$TEMP_DIR'${NC}" >&2
+    echo "Full TEMP_DIR_OUTPUT:" >&2
+    echo "$TEMP_DIR_OUTPUT" >&2
     cat temp_err >&2
     rm -f temp_err
     exit 1
