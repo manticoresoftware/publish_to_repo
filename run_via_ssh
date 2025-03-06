@@ -11,7 +11,7 @@ NC='\033[0m' # No Color
 
 RANDOM_SUFFIX=$(date +%s%3N)_$RANDOM
 
-echo "version #6"  # Incremented version
+echo "version #7"  # Incremented version
 echo -e "${GREEN}Local: ${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${RANDOM_SUFFIX}${NC}"
 
 # Function to retry SSH/SCP commands on network errors only
@@ -92,15 +92,14 @@ retry_cmd "scp -i ${SSH_KEY_LOCATION} ${SSH_OPTS} $temp_dir_script ${REMOTE_SERV
 
 # Execute TEMP_DIR script remotely and capture output
 echo "Creating TEMP_DIR on remote server"
-TEMP_DIR=$(retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} \"bash $remote_temp_dir_script\" | tail -n 1" "couldn't create TEMP_DIR")
-
-# Clean up local script
-rm -f "$temp_dir_script"
+TEMP_DIR_OUTPUT=$(retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} \"bash $remote_temp_dir_script\"")
+TEMP_DIR=$(echo "$TEMP_DIR_OUTPUT" | tail -n 1)
 
 # Check if TEMP_DIR is valid
 if [ -z "$TEMP_DIR" ] || [[ "$TEMP_DIR" =~ ^\"+$ ]]; then
     echo -e "${RED}ERROR: TEMP_DIR assignment failed, got '$TEMP_DIR'${NC}" >&2
     echo "Full TEMP_DIR_OUTPUT:" >&2
+    echo "$TEMP_DIR_OUTPUT" >&2
     ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} "cat $remote_temp_dir_script" >&2
     exit 1
 fi
@@ -152,6 +151,6 @@ echo -e "${GREEN}Copied script to ${REMOTE_SERVER}:${remote_script}${NC}"
 retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} ${remote_script}" "script failed via ssh"
 echo -e "${GREEN}Ran ${remote_script} on ${REMOTE_SERVER}${NC}"
 
-# Cleanup with retry
+# Cleanup with retry (only remote scripts)
 retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} \"rm -f ${remote_script} ${remote_temp_dir_script}\"" "failed to cleanup scripts via ssh"
 echo -e "${GREEN}Cleanup of ${remote_script} and ${remote_temp_dir_script} completed${NC}"
