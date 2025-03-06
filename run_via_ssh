@@ -59,6 +59,7 @@ retry_cmd() {
 retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} \"mkdir -p /tmp/upload_to_repo_runs || exit 1\"" "couldn't create base directory"
 
 # Create TEMP_DIR with run-specific suffix (fixed output capture)
+echo "Creating TEMP_DIR on remote server"
 TEMP_DIR=$(retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} \"bash -c '\
     BASE_DIR=/tmp/upload_to_repo_runs; \
     echo \\\"Remote: ${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${RANDOM_SUFFIX}\\\"; \
@@ -80,8 +81,15 @@ TEMP_DIR=$(retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} \"
       echo \\\"Error: \\\$TEMP_DIR/build not found after creation\\\" >&2; \
       exit 1; \
     fi; \
-    echo \\\$TEMP_DIR'\"" "couldn't set TEMP_DIR" | tail -n 1)
+    echo \\\"TEMP_DIR_PATH: \\\$TEMP_DIR\\\"'\" 2>/tmp/temp_dir_err | grep '^TEMP_DIR_PATH:' | cut -d' ' -f2-")
 
+# Check if TEMP_DIR is empty or invalid
+if [ -z "$TEMP_DIR" ] || [[ "$TEMP_DIR" =~ ^/run_ ]]; then
+    echo -e "${RED}ERROR: TEMP_DIR assignment failed, got '$TEMP_DIR'${NC}" >&2
+    cat /tmp/temp_dir_err >&2
+    rm -f /tmp/temp_dir_err
+    exit 1
+fi
 echo -e "${GREEN}Temporary directory is $TEMP_DIR${NC}"
 
 echo "Verifying TEMP_DIR exists on remote server"
