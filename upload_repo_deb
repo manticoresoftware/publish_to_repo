@@ -29,8 +29,7 @@ ls "$BUILD_FOLDER"
 set -e
 
 repo_generator() {
-  # shellcheck disable=SC2068
-  command="/usr/bin/docker exec -i repo-generator /generator.sh $@"
+  command="stdbuf -oL -eL /usr/bin/docker exec -i repo-generator /generator.sh $@"
   echo "$command"
   if [ "$DRY_RUN" = "false" ]; then
     eval "$command"

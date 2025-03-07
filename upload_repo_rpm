@@ -33,11 +33,10 @@ ls "$BUILD_FOLDER"
 set -e
 
 repo_generator() {
-  # shellcheck disable=SC2068
-  command="/usr/bin/docker exec -i repo-generator /generator.sh $@"
-  echo $command
+  command="stdbuf -oL -eL /usr/bin/docker exec -i repo-generator /generator.sh $@"
+  echo "$command"
   if [ "$DRY_RUN" = "false" ]; then
-    eval $command
+    eval "$command"
     if [[ ! $? -eq 0 ]]; then echo "ERROR: command failed"; exit 1; fi
   fi
 }
