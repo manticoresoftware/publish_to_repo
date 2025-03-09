@@ -129,8 +129,8 @@ echo "Starting remote script execution"
 cd "${TEMP_DIR}" || { echo "Failed to cd to ${TEMP_DIR}" >&2; exit 1; }
 trap cleanup EXIT INT TERM HUP
 
-echo "Downloading https://raw.githubusercontent.com/manticoresoftware/publish_to_repo/feat/retest-improvements/upload_repo_${TYPE} to script"
-curl -sSL "https://raw.githubusercontent.com/manticoresoftware/publish_to_repo/feat/retest-improvements/upload_repo_${TYPE}" > script || { echo "Failed to download upload_repo_${TYPE}" >&2; exit 1; }
+echo "Downloading https://raw.githubusercontent.com/manticoresoftware/publish_to_repo/main/upload_repo_${TYPE} to script"
+curl -sSL "https://raw.githubusercontent.com/manticoresoftware/publish_to_repo/main/upload_repo_${TYPE}" > script || { echo "Failed to download upload_repo_${TYPE}" >&2; exit 1; }
 chmod +x script
 echo "Running upload_repo_${TYPE} script"
 DISTRO="${DISTR}" DIGIT_DELIMITER2="${DELIMITER}" TARGET="${TARGET}" DRY_RUN="${DRY_RUN}" ./script
