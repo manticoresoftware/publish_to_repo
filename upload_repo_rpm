@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # from outside: $DISTRO = 7,8
-# That file here is for reference; actually used the one stored on the host to avoid checkout of the whole code
+
+RED='\033[0;31m'    # For errors
+GREEN='\033[0;32m'  # For success
+BLUE='\033[0;34m'   # For info
+NC='\033[0m'        # No Color
 
 if [ -z "${BUILD_FOLDER+x}" ]; then
   BUILD_FOLDER="build/"
@@ -26,30 +30,37 @@ if [ -z "${DIGIT_FIELD2+x}" ]; then
   DIGIT_FIELD2=1
 fi
 
-echo "Uploading $DISTRO"
-echo "Collected rpm packages"
+echo -e "${BLUE}Uploading $DISTRO${NC}"
+echo -e "${BLUE}Collected rpm packages${NC}"
 ls "$BUILD_FOLDER"
 
 set -e
 
 repo_generator() {
-  command="stdbuf -oL -eL /usr/bin/docker exec -i repo-generator /generator.sh $@"
-  echo "$command"
+  command="/usr/bin/docker exec -i repo-generator /generator.sh $@"
+  echo -e "${BLUE}$command${NC}"
   if [ "$DRY_RUN" = "false" ]; then
-    eval "$command"
-    if [[ ! $? -eq 0 ]]; then echo "ERROR: command failed"; exit 1; fi
+    eval "$command" >temp_out 2>temp_err
+    if [[ ! $? -eq 0 ]]; then
+      echo -e "${RED}ERROR: command failed${NC}"
+      cat temp_out
+      cat temp_err
+      rm -f temp_out temp_err
+      exit 1
+    fi
+    cat temp_out
+    cat temp_err
+    rm -f temp_out temp_err
   fi
 }
 
-
-echo "Contents of ./$BUILD_FOLDER:"
+echo -e "${BLUE}Contents of ./$BUILD_FOLDER:${NC}"
 find "$BUILD_FOLDER"
 
 declare -A archs
 
-echo "Packages integrity check"
+echo -e "${BLUE}Packages integrity check${NC}"
 for f in `find "$BUILD_FOLDER" -type f \( -name "$FILE_MASK" \) | sort -t - -k 3n`; do
-
   if [ -z "$TARGET" ]; then
     DESTINATION="dev"
   else
@@ -62,13 +73,13 @@ for f in `find "$BUILD_FOLDER" -type f \( -name "$FILE_MASK" \) | sort -t - -k 3
 
   packageName="$(basename "$f")"
   if ! repo_generator -t "$DESTINATION" -n "$packageName" -d centos --check-package "<$f"; then
-      echo "$packageName is corrupted. Abort uploading"
-      exit 1
+    echo -e "${RED}$packageName is corrupted. Abort uploading${NC}"
+    exit 1
   fi
 done
 
 for f in `find "$BUILD_FOLDER" -type f \( -name "$FILE_MASK" \)`; do
-  echo "file $f"
+  echo -e "${BLUE}file $f${NC}"
   tail=$(echo "$f" | sed 's_build/__g;s/[a-z]*-//g;')
   VER=$(echo "$tail" | cut -d. -f1,2,3,4,5)
   if [[ $tail == *".x86_64."* ]]; then
@@ -78,23 +89,18 @@ for f in `find "$BUILD_FOLDER" -type f \( -name "$FILE_MASK" \)`; do
   elif [[ $tail == *".noarch."* ]]; then
     ARCH=noarch
   fi
-  echo "Arch: $ARCH"
+  echo -e "${BLUE}Arch: $ARCH${NC}"
 
-  # check if we really need to put icudata to the repo this time
-  # notice: it still goes to bundle archives anyway
   if [[ $f == *icudata* ]]; then
     if [[ $PACK_ICUDATA == 1 ]]; then
       ARCH=noarch
     else
-      # "None" is a nonexisting architecture. In case it's set we build bundle (zip) without building rpm
-      # more answers can give @klirichek
       ARCH=none
     fi
   fi
 
   if [ -f "$f" ]; then
-    echo "Processing $f"
-
+    echo -e "${BLUE}Processing $f${NC}"
     packageName="$(basename "$f")"
     if [[ $ARCH == "x86_64" ]]; then
       repo_generator -n "$packageName" -d centos -v "$DISTRO" -t "$DESTINATION" -a x86_64 --not-index "<$f"
@@ -115,31 +121,31 @@ for f in `find "$BUILD_FOLDER" -type f \( -name "$FILE_MASK" \)`; do
   fi
 done
 
-echo "Finished putting packages"
+echo -e "${GREEN}Finished putting packages${NC}"
 
 if [ -n "$MAKE_BUNDLE" ]; then
-  echo "make bundle(s) and upload them"
+  echo -e "${BLUE}make bundle(s) and upload them${NC}"
 
   if [[ ${archs[x86_64]} == 1 ]]; then
-    echo "Making bundle x86_64"
+    echo -e "${BLUE}Making bundle x86_64${NC}"
     TGZ1=manticore-${VER}.x86_64.tgz
     (cd build && tar cf - $(ls | grep -v -e debuginfo | grep "x86_64\|noarch") *icudata*rpm | gzip -9 -f) >"$TGZ1"
     repo_generator -p "/repository/manticoresearch/$DESTINATION/centos/$DISTRO/" -n "$TGZ1" --not-index --skip-signing <"$TGZ1"
   fi
 
   if [[ ${archs[aarch64]} == 1 ]]; then
-    echo "Making bundle aarch64"
+    echo -e "${BLUE}Making bundle aarch64${NC}"
     TGZ2=manticore-${VER}.aarch64.tgz
     (cd build && tar cf - $(ls | grep -v -e debuginfo | grep "aarch64\|noarch") *icudata*rpm | gzip -9 -f) >"$TGZ2"
     repo_generator -p "/repository/manticoresearch/$DESTINATION/centos/$DISTRO/" -n "$TGZ2" --not-index --skip-signing <"$TGZ2"
   fi
 fi
 
-echo "Indexing"
-# no need to make bundle as we deploy one single package
+echo -e "${BLUE}Indexing${NC}"
 for arch in "${!archs[@]}"; do
   repo_generator -d centos -v "$DISTRO" --architecture "$arch" --target "$DESTINATION" --only-index
 done
 
-echo "Cleanup"
-rm -rf ${BUILD_FOLDER}${FILE_MASK}
+echo -e "${BLUE}Cleanup${NC}"
+rm -rf ${BUILD_FOLDER}${FILE_MASK} || echo -e "${RED}Failed to cleanup${NC}"
+echo -e "${GREEN}Cleanup completed${NC}"

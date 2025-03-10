@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
-# That file here is for reference; actually used the one stored on the host to avoid checkout of the whole code
+
+RED='\033[0;31m'    # For errors
+GREEN='\033[0;32m'  # For success
+BLUE='\033[0;34m'   # For info
+NC='\033[0m'        # No Color
 
 if [ -z "${BUILD_FOLDER+x}" ]; then
   BUILD_FOLDER="build/"
@@ -22,18 +26,27 @@ if [ -z "${DIGIT_FIELD2+x}" ]; then
 fi
 
 repo_generator() {
-  command="stdbuf -oL -eL /usr/bin/docker exec -i repo-generator /generator.sh $@"
-  echo "$command"
+  command="/usr/bin/docker exec -i repo-generator /generator.sh $@"
+  echo -e "${BLUE}$command${NC}"
   if [ "$DRY_RUN" = "false" ]; then
-    eval "$command"
-    if [[ ! $? -eq 0 ]]; then echo "ERROR: command failed"; exit 1; fi
+    eval "$command" >temp_out 2>temp_err
+    if [[ ! $? -eq 0 ]]; then
+      echo -e "${RED}ERROR: command failed${NC}"
+      cat temp_out
+      cat temp_err
+      rm -f temp_out temp_err
+      exit 1
+    fi
+    cat temp_out
+    cat temp_err
+    rm -f temp_out temp_err
   fi
 }
 
 get_destination() {
   if [ -z "$TARGET" ]; then
     DESTINATION="dev"
-    echo "DESTINATION=${DESTINATION}"
+    echo -e "${BLUE}DESTINATION=${DESTINATION}${NC}"
   else
     if [[ "$TARGET" == "release" ]]; then
       DESTINATION="release_candidate"
@@ -43,13 +56,13 @@ get_destination() {
   fi
 }
 
-echo "Contents of ./$BUILD_FOLDER:"
+echo -e "${BLUE}Contents of ./$BUILD_FOLDER:${NC}"
 find "$BUILD_FOLDER"
 
 for f in `find "$BUILD_FOLDER" -type f \( -name "*.zip" -o -name "*.exe" \) | sort -t- -k2`; do
   packageName="$(basename "$f")"
   if [ -f "$f" ]; then
-    echo "Processing $f"
+    echo -e "${BLUE}Processing $f${NC}"
     get_destination
     repo_generator --path "/repository/manticoresearch_windows/$DESTINATION/x64/" --name "$packageName" --target "$DESTINATION" --not-index --skip-signing "<$f"
   fi
@@ -58,11 +71,12 @@ done
 for f in `find "$BUILD_FOLDER" -type f \( -name "*.gz" \) | sort -t- -k2`; do
   packageName="$(basename "$f")"
   if [ -f "$f" ]; then
-    echo "Processing $f"
+    echo -e "${BLUE}Processing $f${NC}"
     get_destination
     repo_generator --path "/repository/manticoresearch_macos/$DESTINATION/" --name "$packageName" --target "$DESTINATION" --not-index --skip-signing "<$f"
   fi
 done
 
-echo "Cleanup"
-rm -rf "$BUILD_FOLDER"*.{zip,gz,exe}
+echo -e "${BLUE}Cleanup${NC}"
+rm -rf "$BUILD_FOLDER"*.{zip,gz,exe} || echo -e "${RED}Failed to cleanup${NC}"
+echo -e "${GREEN}Cleanup completed${NC}"
