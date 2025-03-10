@@ -37,16 +37,16 @@ repo_generator() {
   echo -e "${BLUE}$command${NC}"
   if [ "$DRY_RUN" = "false" ]; then
     eval "$command" >temp_out 2>temp_err
-    if [[ ! $? -eq 0 ]]; then
-      echo -e "${RED}ERROR: command failed${NC}"
-      cat temp_out
+    exit_code=$?
+    cat temp_out  # Stream stdout live
+    if [[ $exit_code -ne 0 ]]; then
+      echo -e "${RED}ERROR: command failed with exit code $exit_code${NC}"
+      echo "Error output:"
       cat temp_err
       rm -f temp_out temp_err
-      exit 1
+      exit $exit_code
     fi
-    cat temp_out
-    cat temp_err
-    rm -f temp_out temp_err
+    rm -f temp_out temp_err  # Clean up without showing stderr on success
   fi
 }
 
