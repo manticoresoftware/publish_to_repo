@@ -7,7 +7,7 @@ NC='\033[0m'        # No Color
 export INDENT_LEVEL=${INDENT_LEVEL:-0}
 TABS=$(printf '\t%.0s' $(seq 1 "$INDENT_LEVEL"))
 
-echo "${TABS}version #5"  # Increment to reflect this fix
+echo "${TABS}version #6"  # Match your logs and reflect this fix
 
 echo "${TABS}Writing SSH key to ${SSH_KEY_LOCATION}"
 echo "${SSH_KEY}" > "${SSH_KEY_LOCATION}"
@@ -42,6 +42,7 @@ retry_cmd() {
         fi
 
         echo "${tabs}Attempt $attempt: $cmd"
+        local exit_file="/tmp/exit_code_$$_$attempt"  # Define exit_file per attempt
         # Run command, capture output, and stream live
         bash -c "$cmd >$output_file 2>$error_file; echo \$? > $exit_file"
         exit_code=$(cat "$exit_file")
