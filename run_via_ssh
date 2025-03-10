@@ -4,168 +4,175 @@ RED='\033[0;31m'    # For errors
 GREEN='\033[0;32m'  # For success
 NC='\033[0m'        # No Color
 
-echo "Writing SSH key to ${SSH_KEY_LOCATION}"
+export INDENT_LEVEL=${INDENT_LEVEL:-0}
+TABS=$(printf '\t%.0s' $(seq 1 "$INDENT_LEVEL"))
+
+echo "${TABS}version #3"
+
+echo "${TABS}Writing SSH key to ${SSH_KEY_LOCATION}"
 echo "${SSH_KEY}" > "${SSH_KEY_LOCATION}"
 chmod 600 "${SSH_KEY_LOCATION}"
-SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR"  # Suppress warnings
+SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR"
 
 RANDOM_SUFFIX=$(date +%s%3N)_$RANDOM
 
-echo "Local: ${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${RANDOM_SUFFIX}"
+echo "${TABS}Local: ${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${RANDOM_SUFFIX}"
 
-# Consolidated retry function for SSH/SCP commands
 retry_cmd() {
     local cmd="$1"
     local error_msg="$2"
-    local copy_build="${3:-false}"  # Optional flag to copy build/ if needed
+    local copy_build="${3:-false}"
     local max_attempts=5
     local attempt=1
     local exit_code
     local output_file="/tmp/output_$$_$RANDOM"
-    local build_copied=false  # Track if build/ was successfully copied
+    local error_file="/tmp/error_$$_$RANDOM"
+    local build_copied=false
+    local tabs=$(printf '\t%.0s' $(seq 1 "$INDENT_LEVEL"))
 
     while [ $attempt -le $max_attempts ]; do
         if [ "$copy_build" = "true" ] && [ "$build_copied" = "false" ]; then
-            echo "Attempt $attempt: Copying build to $TEMP_DIR before execution"
-            # Check if build/ exists remotely first
+            echo "${tabs}Attempt $attempt: Copying build to $TEMP_DIR before execution"
             if ! ssh -i "${SSH_KEY_LOCATION}" ${SSH_OPTS} "${REMOTE_SERVER}" "[ -d \"$TEMP_DIR/build\" ]"; then
-                retry_cmd "scp -i ${SSH_KEY_LOCATION} ${SSH_OPTS} -r build ${REMOTE_SERVER}:${TEMP_DIR}/" "couldn't scp build to $REMOTE_SERVER"
+                INDENT_LEVEL=$((INDENT_LEVEL + 1)) retry_cmd "scp -i ${SSH_KEY_LOCATION} ${SSH_OPTS} -r build ${REMOTE_SERVER}:${TEMP_DIR}/" "couldn't scp build to $REMOTE_SERVER"
                 build_copied=true
             else
-                echo "Build directory already exists, skipping re-upload"
+                echo "${tabs}Build directory already exists, skipping re-upload"
             fi
         fi
 
-        echo "Attempt $attempt: $cmd"
+        echo "${tabs}Attempt $attempt: $cmd"
         exit_file="/tmp/exit_code_$$_$attempt"
-        bash -c "$cmd 2>&1 | tee $output_file; echo \$? > $exit_file"
+        bash -c "$cmd >$output_file 2>$error_file; echo \$? > $exit_file"
         exit_code=$(cat "$exit_file")
+        cat "$output_file" | sed "s/^/${tabs}/"
         rm -f "$exit_file"
-        output=$(cat "$output_file")
-        rm -f "$output_file"
 
         if [ $exit_code -eq 0 ]; then
+            rm -f "$output_file" "$error_file"
             return 0
         fi
 
-        if [ $exit_code -eq 255 ] || echo "$output" | grep -qE "Connection reset by peer|Connection closed|Connection timed out|ssh:.*failed|scp:.*failed"; then
+        output=$(cat "$output_file")
+        error_output=$(cat "$error_file")
+        if [ $exit_code -eq 255 ] || echo "$error_output" | grep -qE "Connection reset by peer|Connection closed|Connection timed out|ssh:.*failed|scp:.*failed"; then
             if [ $attempt -eq $max_attempts ]; then
-                echo -e "${RED}ERROR: $error_msg after $max_attempts network-related attempts${NC}"
-                echo "Full output:"
-                echo "$output"
+                echo -e "${tabs}${RED}ERROR: $error_msg after $max_attempts network-related attempts${NC}"
+                echo "${tabs}Output:"
+                echo "$output" | sed "s/^/${tabs}/"
+                echo "${tabs}Error output:"
+                echo "$error_output" | sed "s/^/${tabs}/"
+                rm -f "$output_file" "$error_file"
                 exit 1
             fi
-            echo -e "${RED}Network error detected (exit $exit_code), retrying in 2s...${NC}"
-            echo "Full output:"
-            echo "$output"
+            echo -e "${tabs}${RED}Network error detected (exit $exit_code), retrying in 2s...${NC}"
+            echo "${tabs}Output:"
+            echo "$output" | sed "s/^/${tabs}/"
+            echo "${tabs}Error output:"
+            echo "$error_output" | sed "s/^/${tabs}/"
             sleep 2
-            # Reset build_copied flag on network error to ensure re-upload if needed
             if [ "$copy_build" = "true" ]; then
                 build_copied=false
             fi
         else
-            echo -e "${RED}ERROR: $error_msg (non-network error, exit $exit_code)${NC}"
-            echo "Full output:"
-            echo "$output"
+            echo -e "${tabs}${RED}ERROR: $error_msg (non-network error, exit $exit_code)$NC"
+            echo "${tabs}Output:"
+            echo "$output" | sed "s/^/${tabs}/"
+            echo "${tabs}Error output:"
+            echo "$error_output" | sed "s/^/${tabs}/"
+            rm -f "$output_file" "$error_file"
             exit $exit_code
         fi
         ((attempt++))
     done
 }
 
-# Create base directory with retry
-echo "Creating base directory /tmp/upload_to_repo_runs"
+echo "${TABS}Creating base directory /tmp/upload_to_repo_runs"
 retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} \"mkdir -p /tmp/upload_to_repo_runs || exit 1\"" "couldn't create base directory"
 
-# Create TEMP_DIR script locally
 temp_dir_script="/tmp/create_temp_dir_$$"
 cat <<EOF > "$temp_dir_script"
 #!/bin/bash
+INDENT_LEVEL=\$((INDENT_LEVEL + 1))
+TABS=\$(printf '\t%.0s' \$(seq 1 "\$INDENT_LEVEL"))
 BASE_DIR=/tmp/upload_to_repo_runs
-echo "Remote: ${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${RANDOM_SUFFIX}"
+echo "\${TABS}Remote: ${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${RANDOM_SUFFIX}"
 RUN_ID=${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${RANDOM_SUFFIX}
 TEMP_DIR=\${BASE_DIR}/run_\${RUN_ID}
 for dir in "\${BASE_DIR}"/run_${GITHUB_RUN_ID}_*; do
   if [[ "\$dir" =~ run_${GITHUB_RUN_ID}_([0-9]+)_.*$ ]]; then
     attempt="\${BASH_REMATCH[1]}"
     if [ "\$attempt" -lt ${GITHUB_RUN_ATTEMPT} ]; then
-      echo "Removing outdated attempt directory: \$dir"
+      echo "\${TABS}Removing outdated attempt directory: \$dir"
       rm -rf "\$dir"
     fi
   fi
 done
-mkdir -p \$TEMP_DIR/build || { echo "Failed to create \$TEMP_DIR/build"; exit 1; }
+mkdir -p \$TEMP_DIR/build || { echo "\${TABS}Failed to create \$TEMP_DIR/build"; exit 1; }
 if [ -d "\$TEMP_DIR/build" ]; then
-  echo "Created: \$TEMP_DIR/build"
+  echo "\${TABS}Created: \$TEMP_DIR/build"
 else
-  echo "Error: \$TEMP_DIR/build not found after creation"
+  echo "\${TABS}Error: \$TEMP_DIR/build not found after creation"
   exit 1
 fi
-echo \$TEMP_DIR
+echo "\${TABS}\$TEMP_DIR"
 EOF
 chmod +x "$temp_dir_script"
 
-# Send TEMP_DIR script to remote server with retry
-echo "Sending TEMP_DIR creation script to /tmp/create_temp_dir_${RANDOM_SUFFIX}"
+echo "${TABS}Sending TEMP_DIR creation script to /tmp/create_temp_dir_${RANDOM_SUFFIX}"
 retry_cmd "scp -i ${SSH_KEY_LOCATION} ${SSH_OPTS} $temp_dir_script ${REMOTE_SERVER}:/tmp/create_temp_dir_${RANDOM_SUFFIX}" "couldn't scp TEMP_DIR script to $REMOTE_SERVER"
 
-# Execute TEMP_DIR script remotely and capture output
-echo "Creating TEMP_DIR on remote server"
+echo "${TABS}Creating TEMP_DIR on remote server"
 TEMP_DIR_OUTPUT=$(retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} \"bash /tmp/create_temp_dir_${RANDOM_SUFFIX}\"" "couldn't create TEMP_DIR on remote server")
-TEMP_DIR=$(echo "$TEMP_DIR_OUTPUT" | grep -v "Warning: Permanently added" | grep -E "^/tmp/upload_to_repo_runs/run_" | tail -n 1)
+TEMP_DIR=$(echo "$TEMP_DIR_OUTPUT" | grep -v "Warning: Permanently added" | grep -E "^\t*/tmp/upload_to_repo_runs/run_" | tail -n 1 | sed 's/^\t*//')
 
 if [ -z "$TEMP_DIR" ] || [[ ! "$TEMP_DIR" =~ ^/tmp/upload_to_repo_runs/run_ ]]; then
-    echo -e "${RED}ERROR: TEMP_DIR assignment failed, got '$TEMP_DIR'${NC}"
-    echo "Full TEMP_DIR_OUTPUT:"
-    echo "$TEMP_DIR_OUTPUT"
-    ssh -i "${SSH_KEY_LOCATION}" ${SSH_OPTS} "${REMOTE_SERVER}" "cat /tmp/create_temp_dir_${RANDOM_SUFFIX}"
+    echo -e "${TABS}${RED}ERROR: TEMP_DIR assignment failed, got '$TEMP_DIR'${NC}"
+    echo "${TABS}Full TEMP_DIR_OUTPUT:"
+    echo "$TEMP_DIR_OUTPUT" | sed "s/^/${TABS}/"
+    ssh -i "${SSH_KEY_LOCATION}" ${SSH_OPTS} "${REMOTE_SERVER}" "cat /tmp/create_temp_dir_${RANDOM_SUFFIX}" | sed "s/^/${TABS}/"
     exit 1
 fi
-echo -e "${GREEN}Temporary directory is $TEMP_DIR${NC}"
+echo -e "${TABS}${GREEN}Temporary directory is $TEMP_DIR${NC}"
 
-# Verify TEMP_DIR exists with retry
-echo "Verifying TEMP_DIR exists on remote server"
+echo "${TABS}Verifying TEMP_DIR exists on remote server"
 retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} \"[ -d \\\"$TEMP_DIR\\\" ] && echo \\\"TEMP_DIR $TEMP_DIR exists\\\" || { echo \\\"ERROR: TEMP_DIR $TEMP_DIR does not exist\\\"; exit 1; }\"" "TEMP_DIR verification failed"
 
-# SCP build directory with retry (initial copy)
-echo "Copying build to $TEMP_DIR"
+echo "${TABS}Copying build to $TEMP_DIR"
 retry_cmd "scp -i ${SSH_KEY_LOCATION} ${SSH_OPTS} -r build ${REMOTE_SERVER}:${TEMP_DIR}/" "couldn't scp build to $REMOTE_SERVER"
-echo -e "${GREEN}Copied package to $TEMP_DIR${NC}"
+echo -e "${TABS}${GREEN}Copied package to $TEMP_DIR${NC}"
 
-# Prepare the remote script
 remote_script="/tmp/script${RANDOM_SUFFIX}"
 cat <<EOF > /tmp/script
 #!/bin/bash
-
-echo "Starting remote script execution"
-cd "${TEMP_DIR}" || { echo "Failed to cd to ${TEMP_DIR}"; exit 1; }
-
-echo "Downloading https://raw.githubusercontent.com/manticoresoftware/publish_to_repo/main/upload_repo_${TYPE} to script"
-curl -sSL "https://raw.githubusercontent.com/manticoresoftware/publish_to_repo/main/upload_repo_${TYPE}" > script || { echo "Failed to download upload_repo_${TYPE}"; exit 1; }
+INDENT_LEVEL=\$((INDENT_LEVEL + 1))
+export INDENT_LEVEL
+TABS=\$(printf '\t%.0s' \$(seq 1 "\$INDENT_LEVEL"))
+echo "\${TABS}Starting remote script execution"
+cd "${TEMP_DIR}" || { echo "\${TABS}Failed to cd to ${TEMP_DIR}"; exit 1; }
+echo "\${TABS}Downloading https://raw.githubusercontent.com/manticoresoftware/publish_to_repo/feat/improve-output/upload_repo_${TYPE} to script"
+curl -sSL "https://raw.githubusercontent.com/manticoresoftware/publish_to_repo/feat/improve-output/upload_repo_${TYPE}" > script || { echo "\${TABS}Failed to download upload_repo_${TYPE}"; exit 1; }
 chmod +x script
-echo "Running upload_repo_${TYPE} script"
-DISTRO="${DISTR}" DIGIT_DELIMITER2="${DELIMITER}" TARGET="${TARGET}" DRY_RUN="${DRY_RUN}" ./script
+echo "\${TABS}Running upload_repo_${TYPE} script"
+INDENT_LEVEL=\$INDENT_LEVEL DISTRO="${DISTR}" DIGIT_DELIMITER2="${DELIMITER}" TARGET="${TARGET}" DRY_RUN="${DRY_RUN}" ./script
 EXIT_CODE=\$?  # Capture exit status
 if [ "\$EXIT_CODE" -ne 0 ]; then
-  echo "upload_repo_${TYPE} failed with exit code \$EXIT_CODE"
+  echo "\${TABS}upload_repo_${TYPE} failed with exit code \$EXIT_CODE"
   exit "\$EXIT_CODE"
 fi
-echo "upload_repo_${TYPE} completed successfully"
+echo "\${TABS}upload_repo_${TYPE} completed successfully"
 exit 0
 EOF
 chmod +x /tmp/script
 
-# SCP the remote script with retry
 retry_cmd "scp -i ${SSH_KEY_LOCATION} ${SSH_OPTS} /tmp/script ${REMOTE_SERVER}:${remote_script}" "couldn't scp script to $REMOTE_SERVER"
-echo -e "${GREEN}Copied script to ${REMOTE_SERVER}:${remote_script}${NC}"
+echo -e "${TABS}${GREEN}Copied script to ${REMOTE_SERVER}:${remote_script}${NC}"
 
-# Run the script with retry, copying build directory only if needed
-echo "Executing remote script ${remote_script}"
-echo "Waiting for remote script to complete (this may take a few minutes)..."
+echo "${TABS}Executing remote script ${remote_script}"
+echo "${TABS}Waiting for remote script to complete (this may take a few minutes)..."
 retry_cmd "ssh -t -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} ${remote_script}" "script failed via ssh" "true"
 
-# Cleanup with retry (only after all retries)
-echo "Cleanup: remove TEMP_DIR ${TEMP_DIR}"
+echo "${TABS}Cleanup: remove TEMP_DIR ${TEMP_DIR}"
 retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} \"rm -rf ${TEMP_DIR}\"" "failed to cleanup TEMP_DIR via ssh"
 retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} \"rm -f ${remote_script} /tmp/create_temp_dir_${RANDOM_SUFFIX}\"" "failed to cleanup scripts via ssh"
-echo -e "${GREEN}Cleanup of ${TEMP_DIR}, ${remote_script}, and temp_dir_script completed${NC}"
+echo -e "${TABS}${GREEN}Cleanup of ${TEMP_DIR}, ${remote_script}, and temp_dir_script completed${NC}"

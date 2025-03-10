@@ -6,6 +6,10 @@ GREEN='\033[0;32m'  # For success
 BLUE='\033[0;34m'   # For info
 NC='\033[0m'        # No Color
 
+# Set indentation level from parent script (remote_script)
+INDENT_LEVEL=${INDENT_LEVEL:-0}
+TABS=$(printf '\t%.0s' $(seq 1 "$INDENT_LEVEL"))
+
 if [ -z "${BUILD_FOLDER+x}" ]; then
   BUILD_FOLDER="build/"
 fi
@@ -30,23 +34,23 @@ if [ -z "${DIGIT_FIELD2+x}" ]; then
   DIGIT_FIELD2=1
 fi
 
-echo -e "${BLUE}Uploading $DISTRO${NC}"
-echo -e "${BLUE}Collected rpm packages${NC}"
-ls "$BUILD_FOLDER"
+echo -e "${TABS}${BLUE}Uploading $DISTRO${NC}"
+echo -e "${TABS}${BLUE}Collected rpm packages${NC}"
+ls "$BUILD_FOLDER" | sed "s/^/${TABS}/"
 
 set -e
 
 repo_generator() {
   command="/usr/bin/docker exec -i repo-generator /generator.sh $@"
-  echo -e "${BLUE}$command${NC}"
+  echo -e "${TABS}${BLUE}$command${NC}"
   if [ "$DRY_RUN" = "false" ]; then
     eval "$command" >temp_out 2>temp_err
     exit_code=$?
-    cat temp_out  # Stream stdout live
+    cat temp_out | sed "s/^/${TABS}\t/"  # Indent generator.sh output one level deeper
     if [[ $exit_code -ne 0 ]]; then
-      echo -e "${RED}ERROR: command failed with exit code $exit_code${NC}"
-      echo "Error output:"
-      cat temp_err
+      echo -e "${TABS}${RED}ERROR: command failed with exit code $exit_code${NC}"
+      echo "${TABS}Error output:"
+      cat temp_err | sed "s/^/${TABS}\t/"
       rm -f temp_out temp_err
       exit $exit_code
     fi
@@ -54,12 +58,12 @@ repo_generator() {
   fi
 }
 
-echo -e "${BLUE}Contents of ./$BUILD_FOLDER:${NC}"
-find "$BUILD_FOLDER"
+echo -e "${TABS}${BLUE}Contents of ./$BUILD_FOLDER:${NC}"
+find "$BUILD_FOLDER" | sed "s/^/${TABS}/"
 
 declare -A archs
 
-echo -e "${BLUE}Packages integrity check${NC}"
+echo -e "${TABS}${BLUE}Packages integrity check${NC}"
 for f in `find "$BUILD_FOLDER" -type f \( -name "$FILE_MASK" \) | sort -t - -k 3n`; do
   if [ -z "$TARGET" ]; then
     DESTINATION="dev"
@@ -73,13 +77,13 @@ for f in `find "$BUILD_FOLDER" -type f \( -name "$FILE_MASK" \) | sort -t - -k 3
 
   packageName="$(basename "$f")"
   if ! repo_generator -t "$DESTINATION" -n "$packageName" -d centos --check-package "<$f"; then
-    echo -e "${RED}$packageName is corrupted. Abort uploading${NC}"
+    echo -e "${TABS}${RED}$packageName is corrupted. Abort uploading${NC}"
     exit 1
   fi
 done
 
 for f in `find "$BUILD_FOLDER" -type f \( -name "$FILE_MASK" \)`; do
-  echo -e "${BLUE}file $f${NC}"
+  echo -e "${TABS}${BLUE}file $f${NC}"
   tail=$(echo "$f" | sed 's_build/__g;s/[a-z]*-//g;')
   VER=$(echo "$tail" | cut -d. -f1,2,3,4,5)
   if [[ $tail == *".x86_64."* ]]; then
@@ -89,7 +93,7 @@ for f in `find "$BUILD_FOLDER" -type f \( -name "$FILE_MASK" \)`; do
   elif [[ $tail == *".noarch."* ]]; then
     ARCH=noarch
   fi
-  echo -e "${BLUE}Arch: $ARCH${NC}"
+  echo -e "${TABS}${BLUE}Arch: $ARCH${NC}"
 
   if [[ $f == *icudata* ]]; then
     if [[ $PACK_ICUDATA == 1 ]]; then
@@ -100,7 +104,7 @@ for f in `find "$BUILD_FOLDER" -type f \( -name "$FILE_MASK" \)`; do
   fi
 
   if [ -f "$f" ]; then
-    echo -e "${BLUE}Processing $f${NC}"
+    echo -e "${TABS}${BLUE}Processing $f${NC}"
     packageName="$(basename "$f")"
     if [[ $ARCH == "x86_64" ]]; then
       repo_generator -n "$packageName" -d centos -v "$DISTRO" -t "$DESTINATION" -a x86_64 --not-index "<$f"
@@ -121,31 +125,31 @@ for f in `find "$BUILD_FOLDER" -type f \( -name "$FILE_MASK" \)`; do
   fi
 done
 
-echo -e "${GREEN}Finished putting packages${NC}"
+echo -e "${TABS}${GREEN}Finished putting packages${NC}"
 
 if [ -n "$MAKE_BUNDLE" ]; then
-  echo -e "${BLUE}make bundle(s) and upload them${NC}"
+  echo -e "${TABS}${BLUE}make bundle(s) and upload them${NC}"
 
   if [[ ${archs[x86_64]} == 1 ]]; then
-    echo -e "${BLUE}Making bundle x86_64${NC}"
+    echo -e "${TABS}${BLUE}Making bundle x86_64${NC}"
     TGZ1=manticore-${VER}.x86_64.tgz
     (cd build && tar cf - $(ls | grep -v -e debuginfo | grep "x86_64\|noarch") *icudata*rpm | gzip -9 -f) >"$TGZ1"
     repo_generator -p "/repository/manticoresearch/$DESTINATION/centos/$DISTRO/" -n "$TGZ1" --not-index --skip-signing <"$TGZ1"
   fi
 
   if [[ ${archs[aarch64]} == 1 ]]; then
-    echo -e "${BLUE}Making bundle aarch64${NC}"
+    echo -e "${TABS}${BLUE}Making bundle aarch64${NC}"
     TGZ2=manticore-${VER}.aarch64.tgz
     (cd build && tar cf - $(ls | grep -v -e debuginfo | grep "aarch64\|noarch") *icudata*rpm | gzip -9 -f) >"$TGZ2"
     repo_generator -p "/repository/manticoresearch/$DESTINATION/centos/$DISTRO/" -n "$TGZ2" --not-index --skip-signing <"$TGZ2"
   fi
 fi
 
-echo -e "${BLUE}Indexing${NC}"
+echo -e "${TABS}${BLUE}Indexing${NC}"
 for arch in "${!archs[@]}"; do
   repo_generator -d centos -v "$DISTRO" --architecture "$arch" --target "$DESTINATION" --only-index
 done
 
-echo -e "${BLUE}Cleanup${NC}"
-rm -rf ${BUILD_FOLDER}${FILE_MASK} || echo -e "${RED}Failed to cleanup${NC}"
-echo -e "${GREEN}Cleanup completed${NC}"
+echo -e "${TABS}${BLUE}Cleanup${NC}"
+rm -rf ${BUILD_FOLDER}${FILE_MASK} || echo -e "${TABS}${RED}Failed to cleanup${NC}"
+echo -e "${TABS}${GREEN}Cleanup completed${NC}"
