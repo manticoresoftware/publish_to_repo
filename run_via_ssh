@@ -4,7 +4,7 @@ RED='\033[0;31m'    # For errors
 GREEN='\033[0;32m'  # For success
 NC='\033[0m'        # No Color
 
-echo "version #1"  # Version tag to ensure latest script is used
+echo "version #2"  # Version tag updated to reflect changes
 
 echo "Writing SSH key to ${SSH_KEY_LOCATION}"
 echo "${SSH_KEY}" > "${SSH_KEY_LOCATION}"
@@ -15,42 +15,60 @@ RANDOM_SUFFIX=$(date +%s%3N)_$RANDOM
 
 echo "Local: ${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${RANDOM_SUFFIX}"
 
-# Function to retry SSH/SCP commands on network errors only
+# Consolidated retry function for SSH/SCP commands
 retry_cmd() {
     local cmd="$1"
     local error_msg="$2"
+    local copy_build="${3:-false}"  # Optional flag to copy build/ if needed
     local max_attempts=5
     local attempt=1
     local exit_code
+    local output_file="/tmp/output_$$_$RANDOM"
+    local build_copied=false  # Track if build/ was successfully copied
 
     while [ $attempt -le $max_attempts ]; do
+        if [ "$copy_build" = "true" ] && [ "$build_copied" = "false" ]; then
+            echo "Attempt $attempt: Copying build to $TEMP_DIR before execution"
+            # Check if build/ exists remotely first
+            if ! ssh -i "${SSH_KEY_LOCATION}" ${SSH_OPTS} "${REMOTE_SERVER}" "[ -d \"$TEMP_DIR/build\" ]"; then
+                retry_cmd "scp -i ${SSH_KEY_LOCATION} ${SSH_OPTS} -r build ${REMOTE_SERVER}:${TEMP_DIR}/" "couldn't scp build to $REMOTE_SERVER"
+                build_copied=true
+            else
+                echo "Build directory already exists, skipping re-upload"
+            fi
+        fi
+
         echo "Attempt $attempt: $cmd"
-        bash -c "$cmd" >temp_out 2>temp_err
-        exit_code=$?
-        cat temp_out
+        exit_file="/tmp/exit_code_$$_$attempt"
+        bash -c "$cmd 2>&1 | tee $output_file; echo \$? > $exit_file"
+        exit_code=$(cat "$exit_file")
+        rm -f "$exit_file"
+        output=$(cat "$output_file")
+        rm -f "$output_file"
+
         if [ $exit_code -eq 0 ]; then
-            rm -f temp_out temp_err
             return 0
         fi
 
-        # Only show temp_err on failure
-        if [ $exit_code -eq 255 ] || grep -qE "Connection reset by peer|Connection closed|Connection timed out|ssh:.*failed|scp:.*failed" temp_err; then
+        if [ $exit_code -eq 255 ] || echo "$output" | grep -qE "Connection reset by peer|Connection closed|Connection timed out|ssh:.*failed|scp:.*failed"; then
             if [ $attempt -eq $max_attempts ]; then
                 echo -e "${RED}ERROR: $error_msg after $max_attempts network-related attempts${NC}"
-                echo "Error output:"
-                cat temp_err
-                rm -f temp_out temp_err
+                echo "Full output:"
+                echo "$output"
                 exit 1
             fi
             echo -e "${RED}Network error detected (exit $exit_code), retrying in 2s...${NC}"
-            echo "Error output:"
-            cat temp_err
+            echo "Full output:"
+            echo "$output"
             sleep 2
+            # Reset build_copied flag on network error to ensure re-upload if needed
+            if [ "$copy_build" = "true" ]; then
+                build_copied=false
+            fi
         else
             echo -e "${RED}ERROR: $error_msg (non-network error, exit $exit_code)${NC}"
-            echo "Error output:"
-            cat temp_err
-            rm -f temp_out temp_err
+            echo "Full output:"
+            echo "$output"
             exit $exit_code
         fi
         ((attempt++))
@@ -96,10 +114,8 @@ retry_cmd "scp -i ${SSH_KEY_LOCATION} ${SSH_OPTS} $temp_dir_script ${REMOTE_SERV
 # Execute TEMP_DIR script remotely and capture output
 echo "Creating TEMP_DIR on remote server"
 TEMP_DIR_OUTPUT=$(retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} \"bash /tmp/create_temp_dir_${RANDOM_SUFFIX}\"" "couldn't create TEMP_DIR on remote server")
-# Filter out SSH warnings and extract the last line that’s a valid path
 TEMP_DIR=$(echo "$TEMP_DIR_OUTPUT" | grep -v "Warning: Permanently added" | grep -E "^/tmp/upload_to_repo_runs/run_" | tail -n 1)
 
-# Check if TEMP_DIR is valid
 if [ -z "$TEMP_DIR" ] || [[ ! "$TEMP_DIR" =~ ^/tmp/upload_to_repo_runs/run_ ]]; then
     echo -e "${RED}ERROR: TEMP_DIR assignment failed, got '$TEMP_DIR'${NC}"
     echo "Full TEMP_DIR_OUTPUT:"
@@ -145,54 +161,10 @@ chmod +x /tmp/script
 retry_cmd "scp -i ${SSH_KEY_LOCATION} ${SSH_OPTS} /tmp/script ${REMOTE_SERVER}:${remote_script}" "couldn't scp script to $REMOTE_SERVER"
 echo -e "${GREEN}Copied script to ${REMOTE_SERVER}:${remote_script}${NC}"
 
-# Run the script with retry, ensuring build directory is copied each time
+# Run the script with retry, copying build directory only if needed
 echo "Executing remote script ${remote_script}"
 echo "Waiting for remote script to complete (this may take a few minutes)..."
-retry_cmd_with_build_copy() {
-    local cmd="ssh -t -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} ${remote_script}"
-    local error_msg="script failed via ssh"
-    local max_attempts=5
-    local attempt=1
-    local exit_code
-
-    while [ $attempt -le $max_attempts ]; do
-        echo "Attempt $attempt: Copying build to $TEMP_DIR before execution"
-        retry_cmd "scp -i ${SSH_KEY_LOCATION} ${SSH_OPTS} -r build ${REMOTE_SERVER}:${TEMP_DIR}/" "couldn't scp build to $REMOTE_SERVER"
-        echo "Attempt $attempt: $cmd"
-        bash -c "$cmd" >temp_out 2>temp_err
-        exit_code=$?
-        cat temp_out
-        if [ $exit_code -eq 0 ]; then
-            rm -f temp_out temp_err
-            return 0
-        fi
-
-        # Only show temp_err on failure
-        if [ $exit_code -eq 255 ] || grep -qE "Connection reset by peer|Connection closed|Connection timed out|ssh:.*failed|scp:.*failed" temp_err; then
-            if [ $attempt -eq $max_attempts ]; then
-                echo -e "${RED}ERROR: $error_msg after $max_attempts network-related attempts${NC}"
-                echo "Error output:"
-                cat temp_err
-                rm -f temp_out temp_err
-                exit 1
-            fi
-            echo -e "${RED}Network error detected (exit $exit_code), retrying in 2s...${NC}"
-            echo "Error output:"
-            cat temp_err
-            sleep 2
-        else
-            echo -e "${RED}ERROR: $error_msg (non-network error, exit $exit_code)${NC}"
-            echo "Error output:"
-            cat temp_err
-            rm -f temp_out temp_err
-            exit $exit_code
-        fi
-        ((attempt++))
-    done
-}
-
-retry_cmd_with_build_copy
-echo -e "${GREEN}Ran ${remote_script} on ${REMOTE_SERVER}${NC}"
+retry_cmd "ssh -t -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} ${remote_script}" "script failed via ssh" "true"
 
 # Cleanup with retry (only after all retries)
 echo "Cleanup: remove TEMP_DIR ${TEMP_DIR}"
