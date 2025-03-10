@@ -8,7 +8,7 @@ NC='\033[0m'        # No Color
 echo -e "${BLUE}Writing SSH key to ${SSH_KEY_LOCATION}${NC}"
 echo "${SSH_KEY}" > "${SSH_KEY_LOCATION}"
 chmod 600 "${SSH_KEY_LOCATION}"
-SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR"  # Suppress warnings
 
 RANDOM_SUFFIX=$(date +%s%3N)_$RANDOM
 
@@ -95,10 +95,11 @@ retry_cmd "scp -i ${SSH_KEY_LOCATION} ${SSH_OPTS} $temp_dir_script ${REMOTE_SERV
 # Execute TEMP_DIR script remotely and capture output
 echo -e "${BLUE}Creating TEMP_DIR on remote server${NC}"
 TEMP_DIR_OUTPUT=$(retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} \"bash /tmp/create_temp_dir_${RANDOM_SUFFIX}\"" "couldn't create TEMP_DIR on remote server")
-TEMP_DIR=$(echo "$TEMP_DIR_OUTPUT" | tail -n 1)
+# Filter out SSH warnings and extract the last line that’s a valid path
+TEMP_DIR=$(echo "$TEMP_DIR_OUTPUT" | grep -v "Warning: Permanently added" | grep -E "^/tmp/upload_to_repo_runs/run_" | tail -n 1)
 
 # Check if TEMP_DIR is valid
-if [ -z "$TEMP_DIR" ] || [[ "$TEMP_DIR" =~ ^\"+$ ]]; then
+if [ -z "$TEMP_DIR" ] || [[ ! "$TEMP_DIR" =~ ^/tmp/upload_to_repo_runs/run_ ]]; then
     echo -e "${RED}ERROR: TEMP_DIR assignment failed, got '$TEMP_DIR'${NC}"
     echo -e "${BLUE}Full TEMP_DIR_OUTPUT:${NC}"
     echo "$TEMP_DIR_OUTPUT"
