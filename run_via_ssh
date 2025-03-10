@@ -7,7 +7,7 @@ NC='\033[0m'        # No Color
 export INDENT_LEVEL=${INDENT_LEVEL:-0}
 TABS=$(printf '\t%.0s' $(seq 1 "$INDENT_LEVEL"))
 
-echo "${TABS}version #3"
+echo "${TABS}version #4"
 
 echo "${TABS}Writing SSH key to ${SSH_KEY_LOCATION}"
 echo "${SSH_KEY}" > "${SSH_KEY_LOCATION}"
@@ -30,6 +30,9 @@ retry_cmd() {
     local build_copied=false
     local tabs=$(printf '\t%.0s' $(seq 1 "$INDENT_LEVEL"))
 
+    # Variable to capture clean command output (for TEMP_DIR_OUTPUT)
+    local clean_output=""
+
     while [ $attempt -le $max_attempts ]; do
         if [ "$copy_build" = "true" ] && [ "$build_copied" = "false" ]; then
             echo "${tabs}Attempt $attempt: Copying build to $TEMP_DIR before execution"
@@ -43,13 +46,16 @@ retry_cmd() {
 
         echo "${tabs}Attempt $attempt: $cmd"
         exit_file="/tmp/exit_code_$$_$attempt"
+        # Capture clean output directly from the command, stream with indentation
         bash -c "$cmd >$output_file 2>$error_file; echo \$? > $exit_file"
         exit_code=$(cat "$exit_file")
         cat "$output_file" | sed "s/^/${tabs}/"
+        clean_output=$(cat "$output_file")  # Store unindented output for return
         rm -f "$exit_file"
 
         if [ $exit_code -eq 0 ]; then
             rm -f "$output_file" "$error_file"
+            echo "$clean_output"  # Return clean output to caller
             return 0
         fi
 
@@ -124,7 +130,7 @@ retry_cmd "scp -i ${SSH_KEY_LOCATION} ${SSH_OPTS} $temp_dir_script ${REMOTE_SERV
 
 echo "${TABS}Creating TEMP_DIR on remote server"
 TEMP_DIR_OUTPUT=$(retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} \"bash /tmp/create_temp_dir_${RANDOM_SUFFIX}\"" "couldn't create TEMP_DIR on remote server")
-TEMP_DIR=$(echo "$TEMP_DIR_OUTPUT" | grep -v "Warning: Permanently added" | grep -E "^\t*/tmp/upload_to_repo_runs/run_" | tail -n 1 | sed 's/^\t*//')
+TEMP_DIR=$(echo "$TEMP_DIR_OUTPUT" | grep -E "^\t*/tmp/upload_to_repo_runs/run_" | tail -n 1 | sed 's/^\t*//')
 
 if [ -z "$TEMP_DIR" ] || [[ ! "$TEMP_DIR" =~ ^/tmp/upload_to_repo_runs/run_ ]]; then
     echo -e "${TABS}${RED}ERROR: TEMP_DIR assignment failed, got '$TEMP_DIR'${NC}"
