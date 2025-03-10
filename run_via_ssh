@@ -7,7 +7,7 @@ NC='\033[0m'        # No Color
 export INDENT_LEVEL=${INDENT_LEVEL:-0}
 TABS=$(printf '\t%.0s' $(seq 1 "$INDENT_LEVEL"))
 
-echo "${TABS}version #4"
+echo "${TABS}version #5"  # Increment to reflect this fix
 
 echo "${TABS}Writing SSH key to ${SSH_KEY_LOCATION}"
 echo "${SSH_KEY}" > "${SSH_KEY_LOCATION}"
@@ -30,9 +30,6 @@ retry_cmd() {
     local build_copied=false
     local tabs=$(printf '\t%.0s' $(seq 1 "$INDENT_LEVEL"))
 
-    # Variable to capture clean command output (for TEMP_DIR_OUTPUT)
-    local clean_output=""
-
     while [ $attempt -le $max_attempts ]; do
         if [ "$copy_build" = "true" ] && [ "$build_copied" = "false" ]; then
             echo "${tabs}Attempt $attempt: Copying build to $TEMP_DIR before execution"
@@ -45,12 +42,11 @@ retry_cmd() {
         fi
 
         echo "${tabs}Attempt $attempt: $cmd"
-        exit_file="/tmp/exit_code_$$_$attempt"
-        # Capture clean output directly from the command, stream with indentation
+        # Run command, capture output, and stream live
         bash -c "$cmd >$output_file 2>$error_file; echo \$? > $exit_file"
         exit_code=$(cat "$exit_file")
-        cat "$output_file" | sed "s/^/${tabs}/"
-        clean_output=$(cat "$output_file")  # Store unindented output for return
+        cat "$output_file" | sed "s/^/${tabs}/"  # Stream indented output live
+        local clean_output=$(cat "$output_file")  # Capture clean output for return
         rm -f "$exit_file"
 
         if [ $exit_code -eq 0 ]; then
@@ -59,8 +55,8 @@ retry_cmd() {
             return 0
         fi
 
-        output=$(cat "$output_file")
-        error_output=$(cat "$error_file")
+        local output=$(cat "$output_file")
+        local error_output=$(cat "$error_file")
         if [ $exit_code -eq 255 ] || echo "$error_output" | grep -qE "Connection reset by peer|Connection closed|Connection timed out|ssh:.*failed|scp:.*failed"; then
             if [ $attempt -eq $max_attempts ]; then
                 echo -e "${tabs}${RED}ERROR: $error_msg after $max_attempts network-related attempts${NC}"
