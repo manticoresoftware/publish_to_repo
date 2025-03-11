@@ -7,7 +7,7 @@ NC='\033[0m'        # No Color
 export INDENT_LEVEL=${INDENT_LEVEL:-0}
 TABS=$(printf '\t%.0s' $(seq 1 "$INDENT_LEVEL"))
 
-echo "${TABS}version #22"  # Simplified parsing with grep and trim
+echo "${TABS}version #24"  # Robust SSH retry logic
 
 echo "${TABS}Writing SSH key to ${SSH_KEY_LOCATION}"
 echo "${SSH_KEY}" > "${SSH_KEY_LOCATION}"
@@ -54,16 +54,15 @@ retry_cmd() {
             return 0
         fi
 
-        if [ $exit_code -eq 255 ] || echo "$clean_output" | grep -qE "Connection reset by peer|Connection closed|Connection timed out|ssh:.*failed|scp:.*failed"; then
+        # Retry on any SSH failure (255) or specific error messages
+        if [ $exit_code -eq 255 ] || echo "$clean_output" | grep -qE "Connection reset by peer|Connection closed.*|Connection timed out|kex_exchange_identification|ssh:.*failed|scp:.*failed"; then
             if [ $attempt -eq $max_attempts ]; then
                 echo -e "${tabs}${RED}ERROR: $error_msg after $max_attempts network-related attempts${NC}" >&2
                 echo "${tabs}Output:" >&2
                 echo "$clean_output" | sed "s/^/${tabs}/" >&2
                 exit 1
             fi
-            echo -e "${tabs}${RED}Network error detected (exit $exit_code), retrying in 2s...${NC}" >&2
-            echo "${tabs}Output:" >&2
-            echo "$clean_output" | sed "s/^/${tabs}/" >&2
+            echo -e "${tabs}${RED}Network error detected (exit $exit_code): $clean_output, retrying in 2s...${NC}" >&2
             sleep 2
             if [ "$copy_build" = "true" ]; then
                 build_copied=false
