@@ -7,7 +7,7 @@ NC='\033[0m'        # No Color
 export INDENT_LEVEL=${INDENT_LEVEL:-0}
 TABS=$(printf '\t%.0s' $(seq 1 "$INDENT_LEVEL"))
 
-echo "${TABS}version #15"  # Incremented to fix parsing and add debug
+echo "${TABS}version #16"  # Incremented to fix parsing
 
 echo "${TABS}Writing SSH key to ${SSH_KEY_LOCATION}"
 echo "${SSH_KEY}" > "${SSH_KEY_LOCATION}"
@@ -46,12 +46,12 @@ retry_cmd() {
         bash -c "$cmd 2>&1 | tee $live_file >$output_file; echo \$? > $exit_file"
         exit_code=$(cat "$exit_file")
         cat "$live_file" | sed "s/^/${tabs}/"  # Stream live
-        local clean_output=$(cat "$output_file")
+        local clean_output=$(cat "$output_file" | grep -v "^${tabs}Attempt [0-9]+:")  # Exclude Attempt line
         rm -f "$exit_file" "$live_file"
 
         if [ $exit_code -eq 0 ]; then
             rm -f "$output_file"
-            echo "$clean_output"  # Use echo to preserve newlines and tabs
+            echo "$clean_output"  # Return clean output
             return 0
         fi
 
@@ -121,6 +121,8 @@ SCP_TEMP_OUTPUT=$(retry_cmd "scp -i ${SSH_KEY_LOCATION} ${SSH_OPTS} $temp_dir_sc
 
 echo "${TABS}Creating TEMP_DIR on remote server"
 TEMP_DIR_OUTPUT=$(retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} \"bash /tmp/create_temp_dir_${RANDOM_SUFFIX}\"" "couldn't create TEMP_DIR on remote server")
+echo "${TABS}Raw TEMP_DIR_OUTPUT (hex dump):"
+echo "$TEMP_DIR_OUTPUT" | od -c | sed "s/^/${TABS}/"
 TEMP_DIR=$(echo "$TEMP_DIR_OUTPUT" | grep -E "^\t+/tmp/upload_to_repo_runs/run_" | tail -n 1 | sed 's/^\t+//')
 
 if [ -z "$TEMP_DIR" ] || [[ ! "$TEMP_DIR" =~ ^/tmp/upload_to_repo_runs/run_ ]]; then
