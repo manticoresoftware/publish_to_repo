@@ -7,7 +7,7 @@ NC='\033[0m'        # No Color
 export INDENT_LEVEL=${INDENT_LEVEL:-0}
 TABS=$(printf '\t%.0s' $(seq 1 "$INDENT_LEVEL"))
 
-echo "${TABS}version #26"  # Restore live output, no duplication
+echo "${TABS}version #28"  # Restore tee for live output
 
 echo "${TABS}Writing SSH key to ${SSH_KEY_LOCATION}"
 echo "${SSH_KEY}" > "${SSH_KEY_LOCATION}"
@@ -43,34 +43,35 @@ retry_cmd() {
 
         echo "${tabs}Attempt $attempt: $cmd" >&2
         local exit_file="/tmp/exit_code_$$_$attempt"
+        # Restore tee for live streaming, ensure output_file captures all
         bash -c "$cmd 2>&1 | tee $live_file >$output_file; echo \$? > $exit_file"
         exit_code=$(cat "$exit_file")
-        cat "$live_file" | sed "s/^/${tabs}/" >&2  # Restore live streaming
+        cat "$live_file" | sed "s/^/${tabs}/" >&2  # Live streaming
         local clean_output=$(cat "$output_file" | grep -v "^${tabs}Attempt [0-9]+:")
         rm -f "$exit_file" "$live_file" "$output_file"
 
-        if [ $exit_code -eq 255 ] || echo "$clean_output" | grep -qE "Connection reset by peer|Connection closed.*|Connection timed out|kex_exchange_identification|ssh:.*failed|scp:.*failed"; then
+        # Retry on any non-zero exit code or error-like output
+        if [ $exit_code -ne 0 ] || echo "$clean_output" | grep -qE "Connection reset by peer|Connection closed.*|Connection timed out|kex_exchange_identification|ssh:.*failed|scp:.*failed|error|failed"; then
             if [ $attempt -eq $max_attempts ]; then
-                echo -e "${tabs}${RED}ERROR: $error_msg after $max_attempts network-related attempts${NC}" >&2
+                echo -e "${tabs}${RED}ERROR: $error_msg after $max_attempts attempts${NC}" >&2
                 echo "${tabs}Output:" >&2
                 echo "$clean_output" | sed "s/^/${tabs}/" >&2
                 exit 1
             fi
-            echo -e "${tabs}${RED}Network error detected (exit $exit_code): $clean_output, retrying in 2s...${NC}" >&2
+            echo -e "${tabs}${RED}Error detected (exit $exit_code): $clean_output, retrying in 2s...${NC}" >&2
             sleep 2
             if [ "$copy_build" = "true" ]; then
                 build_copied=false
             fi
         else
-            echo -e "${tabs}${RED}ERROR: $error_msg (non-network error, exit $exit_code)$NC" >&2
+            if [ $exit_code -eq 0 ]; then
+                echo "$clean_output"
+                return 0
+            fi
+            echo -e "${tabs}${RED}ERROR: $error_msg (unexpected error, exit $exit_code)$NC" >&2
             echo "${tabs}Output:" >&2
             echo "$clean_output" | sed "s/^/${tabs}/" >&2
             exit $exit_code
-        fi
-
-        if [ $exit_code -eq 0 ]; then
-            echo "$clean_output"
-            return 0
         fi
         ((attempt++))
     done
@@ -167,7 +168,6 @@ echo -e "${TABS}${GREEN}Copied script to ${REMOTE_SERVER}:${remote_script}${NC}"
 echo "${TABS}Executing remote script ${remote_script}"
 echo "${TABS}Waiting for remote script to complete (this may take a few minutes)..."
 EXEC_OUTPUT=$(retry_cmd "ssh -t -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} ${remote_script}" "script failed via ssh" "true")
-# Removed: echo "${TABS}Remote script output:" and echo "$EXEC_OUTPUT" | sed ...
 
 echo "${TABS}Cleanup: remove TEMP_DIR ${TEMP_DIR}"
 CLEANUP_TEMP_OUTPUT=$(retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} \"rm -rf ${TEMP_DIR}\"" "failed to cleanup TEMP_DIR via ssh")
