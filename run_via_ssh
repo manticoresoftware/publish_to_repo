@@ -7,7 +7,7 @@ NC='\033[0m'        # No Color
 export INDENT_LEVEL=${INDENT_LEVEL:-0}
 TABS=$(printf '\t%.0s' $(seq 1 "$INDENT_LEVEL"))
 
-echo "${TABS}version #10"  # Incremented to debug execution
+echo "${TABS}version #12"  # Incremented to fix TABS issue
 
 echo "${TABS}Writing SSH key to ${SSH_KEY_LOCATION}"
 echo "${SSH_KEY}" > "${SSH_KEY_LOCATION}"
@@ -43,16 +43,15 @@ retry_cmd() {
 
         echo "${tabs}Attempt $attempt: $cmd"
         local exit_file="/tmp/exit_code_$$_$attempt"
-        # Run command, stream and capture all output live
         bash -c "$cmd 2>&1 | tee $live_file >$output_file; echo \$? > $exit_file"
         exit_code=$(cat "$exit_file")
         cat "$live_file" | sed "s/^/${tabs}/"  # Stream combined stdout and stderr live
-        local clean_output=$(cat "$output_file")  # Capture all output for return
+        local clean_output=$(cat "$output_file")
         rm -f "$exit_file" "$live_file"
 
         if [ $exit_code -eq 0 ]; then
             rm -f "$output_file"
-            printf '%s' "$clean_output"  # Return clean output to caller
+            printf '%s' "$clean_output"  # Return clean output
             return 0
         fi
 
@@ -87,31 +86,31 @@ echo "${TABS}Creating base directory /tmp/upload_to_repo_runs"
 BASE_DIR_OUTPUT=$(retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} \"mkdir -p /tmp/upload_to_repo_runs || exit 1\"" "couldn't create base directory")
 
 temp_dir_script="/tmp/create_temp_dir_$$"
-cat <<EOF > "$temp_dir_script"
+cat <<'EOF' > "$temp_dir_script"
 #!/bin/bash
-INDENT_LEVEL=\$((INDENT_LEVEL + 1))
-TABS=\$(printf '\t%.0s' \$(seq 1 "\$INDENT_LEVEL"))
+INDENT_LEVEL=$((INDENT_LEVEL + 1))
+TABS=$(printf '\t%.0s' $(seq 1 "$INDENT_LEVEL")) || { echo "Failed to set TABS"; exit 1; }
 BASE_DIR=/tmp/upload_to_repo_runs
-echo "Remote: ${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${RANDOM_SUFFIX}"
+echo "${TABS}Remote: ${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${RANDOM_SUFFIX}"
 RUN_ID=${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${RANDOM_SUFFIX}
-TEMP_DIR=\${BASE_DIR}/run_\${RUN_ID}
-for dir in "\${BASE_DIR}"/run_${GITHUB_RUN_ID}_*; do
-  if [[ "\$dir" =~ run_${GITHUB_RUN_ID}_([0-9]+)_.*$ ]]; then
-    attempt="\${BASH_REMATCH[1]}"
-    if [ "\$attempt" -lt ${GITHUB_RUN_ATTEMPT} ]; then
-      echo "Removing outdated attempt directory: \$dir"
-      rm -rf "\$dir"
+TEMP_DIR=${BASE_DIR}/run_${RUN_ID}
+for dir in "${BASE_DIR}"/run_${GITHUB_RUN_ID}_*; do
+  if [[ "$dir" =~ run_${GITHUB_RUN_ID}_([0-9]+)_.*$ ]]; then
+    attempt="${BASH_REMATCH[1]}"
+    if [ "$attempt" -lt ${GITHUB_RUN_ATTEMPT} ]; then
+      echo "${TABS}Removing outdated attempt directory: $dir"
+      rm -rf "$dir"
     fi
   fi
 done
-mkdir -p \$TEMP_DIR/build || { echo "Failed to create \$TEMP_DIR/build"; exit 1; }
-if [ -d "\$TEMP_DIR/build" ]; then
-  echo "Created: \$TEMP_DIR/build"
+mkdir -p $TEMP_DIR/build || { echo "${TABS}Failed to create $TEMP_DIR/build"; exit 1; }
+if [ -d "$TEMP_DIR/build" ]; then
+  echo "${TABS}Created: $TEMP_DIR/build"
 else
-  echo "Error: \$TEMP_DIR/build not found after creation"
+  echo "${TABS}Error: $TEMP_DIR/build not found after creation"
   exit 1
 fi
-echo "\$TEMP_DIR"
+echo "${TABS}$TEMP_DIR"
 EOF
 chmod +x "$temp_dir_script"
 
@@ -120,16 +119,16 @@ SCP_TEMP_OUTPUT=$(retry_cmd "scp -i ${SSH_KEY_LOCATION} ${SSH_OPTS} $temp_dir_sc
 
 echo "${TABS}Creating TEMP_DIR on remote server"
 TEMP_DIR_OUTPUT=$(retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} \"bash /tmp/create_temp_dir_${RANDOM_SUFFIX}\"" "couldn't create TEMP_DIR on remote server")
-TEMP_DIR=$(echo "$TEMP_DIR_OUTPUT" | grep -E "^/tmp/upload_to_repo_runs/run_" | tail -n 1)
+TEMP_DIR=$(echo "$TEMP_DIR_OUTPUT" | grep -E "^\t*/tmp/upload_to_repo_runs/run_" | tail -n 1 | sed 's/^\t*//')
 
 if [ -z "$TEMP_DIR" ] || [[ ! "$TEMP_DIR" =~ ^/tmp/upload_to_repo_runs/run_ ]]; then
     echo -e "${TABS}${RED}ERROR: TEMP_DIR assignment failed, got '$TEMP_DIR'${NC}"
     echo "${TABS}Full TEMP_DIR_OUTPUT:"
-    echo "$TEMP_DIR_OUTPUT" | sed "s/^/${tabs}/"
+    echo "$TEMP_DIR_OUTPUT" | sed "s/^/${TABS}/"
     echo "${TABS}Checking remote script existence and permissions:"
     retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} \"ls -l /tmp/create_temp_dir_${RANDOM_SUFFIX} || echo 'Script not found'\"" "couldn't check script existence"
     echo "${TABS}Remote script content:"
-    ssh -i "${SSH_KEY_LOCATION}" ${SSH_OPTS} "${REMOTE_SERVER}" "cat /tmp/create_temp_dir_${RANDOM_SUFFIX}" | sed "s/^/${tabs}/"
+    ssh -i "${SSH_KEY_LOCATION}" ${SSH_OPTS} "${REMOTE_SERVER}" "cat /tmp/create_temp_dir_${RANDOM_SUFFIX}" | sed "s/^/${TABS}/"
     exit 1
 fi
 echo -e "${TABS}${GREEN}Temporary directory is $TEMP_DIR${NC}"
@@ -142,24 +141,23 @@ SCP_BUILD_OUTPUT=$(retry_cmd "scp -i ${SSH_KEY_LOCATION} ${SSH_OPTS} -r build ${
 echo -e "${TABS}${GREEN}Copied package to $TEMP_DIR${NC}"
 
 remote_script="/tmp/script${RANDOM_SUFFIX}"
-cat <<EOF > /tmp/script
+cat <<'EOF' > /tmp/script
 #!/bin/bash
-INDENT_LEVEL=\$((INDENT_LEVEL + 1))
-export INDENT_LEVEL
-TABS=\: \$(printf '\t%.0s' \$(seq 1 "\$INDENT_LEVEL"))
-echo "\${TABS}Starting remote script execution"
-cd "${TEMP_DIR}" || { echo "\${TABS}Failed to cd to ${TEMP_DIR}"; exit 1; }
-echo "\${TABS}Downloading https://raw.githubusercontent.com/manticoresoftware/publish_to_repo/feat/improve-output/upload_repo_${TYPE} to script"
-curl -sSL "https://raw.githubusercontent.com/manticoresoftware/publish_to_repo/feat/improve-output/upload_repo_${TYPE}" > script || { echo "\${TABS}Failed to download upload_repo_${TYPE}"; exit 1; }
+INDENT_LEVEL=$((INDENT_LEVEL + 1))
+TABS=$(printf '\t%.0s' $(seq 1 "$INDENT_LEVEL")) || { echo "Failed to set TABS"; exit 1; }
+echo "${TABS}Starting remote script execution"
+cd "${TEMP_DIR}" || { echo "${TABS}Failed to cd to ${TEMP_DIR}"; exit 1; }
+echo "${TABS}Downloading https://raw.githubusercontent.com/manticoresoftware/publish_to_repo/feat/improve-output/upload_repo_${TYPE} to script"
+curl -sSL "https://raw.githubusercontent.com/manticoresoftware/publish_to_repo/feat/improve-output/upload_repo_${TYPE}" > script || { echo "${TABS}Failed to download upload_repo_${TYPE}"; exit 1; }
 chmod +x script
-echo "\${TABS}Running upload_repo_${TYPE} script"
-INDENT_LEVEL=\$INDENT_LEVEL DISTRO="${DISTR}" DIGIT_DELIMITER2="${DELIMITER}" TARGET="${TARGET}" DRY_RUN="${DRY_RUN}" ./script
-EXIT_CODE=\$?  # Capture exit status
-if [ "\$EXIT_CODE" -ne 0 ]; then
-  echo "\${TABS}upload_repo_${TYPE} failed with exit code \$EXIT_CODE"
-  exit "\$EXIT_CODE"
+echo "${TABS}Running upload_repo_${TYPE} script"
+INDENT_LEVEL=$INDENT_LEVEL DISTRO="${DISTR}" DIGIT_DELIMITER2="${DELIMITER}" TARGET="${TARGET}" DRY_RUN="${DRY_RUN}" ./script
+EXIT_CODE=$?  # Capture exit status
+if [ "$EXIT_CODE" -ne 0 ]; then
+  echo "${TABS}upload_repo_${TYPE} failed with exit code $EXIT_CODE"
+  exit "$EXIT_CODE"
 fi
-echo "\${TABS}upload_repo_${TYPE} completed successfully"
+echo "${TABS}upload_repo_${TYPE} completed successfully"
 exit 0
 EOF
 chmod +x /tmp/script
@@ -171,6 +169,8 @@ echo -e "${TABS}${GREEN}Copied script to ${REMOTE_SERVER}:${remote_script}${NC}"
 echo "${TABS}Executing remote script ${remote_script}"
 echo "${TABS}Waiting for remote script to complete (this may take a few minutes)..."
 EXEC_OUTPUT=$(retry_cmd "ssh -t -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} ${remote_script}" "script failed via ssh" "true")
+echo "${TABS}Remote script output:"
+echo "$EXEC_OUTPUT" | sed "s/^/${TABS}/"
 
 echo "${TABS}Cleanup: remove TEMP_DIR ${TEMP_DIR}"
 CLEANUP_TEMP_OUTPUT=$(retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} \"rm -rf ${TEMP_DIR}\"" "failed to cleanup TEMP_DIR via ssh")
