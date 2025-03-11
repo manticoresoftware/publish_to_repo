@@ -117,6 +117,9 @@ SCP_TEMP_OUTPUT=$(retry_cmd "scp -i ${SSH_KEY_LOCATION} ${SSH_OPTS} $temp_dir_sc
 
 echo "${TABS}Creating TEMP_DIR on remote server"
 TEMP_DIR_OUTPUT=$(retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} \"bash /tmp/create_temp_dir_${RANDOM_SUFFIX}\"" "couldn't create TEMP_DIR on remote server")
+echo "${TABS}Raw TEMP_DIR_OUTPUT (normal):"
+echo "$TEMP_DIR_OUTPUT" | sed "s/^/${TABS}/"
+
 echo "${TABS}Raw TEMP_DIR_OUTPUT (hex dump):"
 echo "$TEMP_DIR_OUTPUT" | od -c | sed "s/^/${TABS}/"
 TEMP_DIR=$(echo "$TEMP_DIR_OUTPUT" | grep -E "^\t/tmp/upload_to_repo_runs/run_" | tail -n 1 | sed 's/^\t//')
