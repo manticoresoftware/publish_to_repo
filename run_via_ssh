@@ -7,7 +7,7 @@ NC='\033[0m'        # No Color
 export INDENT_LEVEL=${INDENT_LEVEL:-0}
 TABS=$(printf '\t%.0s' $(seq 1 "$INDENT_LEVEL"))
 
-echo "${TABS}version #14"  # Incremented to pass TABS directly
+echo "${TABS}version #15"  # Incremented to fix parsing and add debug
 
 echo "${TABS}Writing SSH key to ${SSH_KEY_LOCATION}"
 echo "${SSH_KEY}" > "${SSH_KEY_LOCATION}"
@@ -45,13 +45,13 @@ retry_cmd() {
         local exit_file="/tmp/exit_code_$$_$attempt"
         bash -c "$cmd 2>&1 | tee $live_file >$output_file; echo \$? > $exit_file"
         exit_code=$(cat "$exit_file")
-        cat "$live_file" | sed "s/^/${tabs}/"  # Stream combined stdout and stderr live
+        cat "$live_file" | sed "s/^/${tabs}/"  # Stream live
         local clean_output=$(cat "$output_file")
         rm -f "$exit_file" "$live_file"
 
         if [ $exit_code -eq 0 ]; then
             rm -f "$output_file"
-            printf '%s' "$clean_output"  # Return clean output
+            echo "$clean_output"  # Use echo to preserve newlines and tabs
             return 0
         fi
 
@@ -86,7 +86,7 @@ echo "${TABS}Creating base directory /tmp/upload_to_repo_runs"
 BASE_DIR_OUTPUT=$(retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} \"mkdir -p /tmp/upload_to_repo_runs || exit 1\"" "couldn't create base directory")
 
 temp_dir_script="/tmp/create_temp_dir_$$"
-remote_tabs=$(printf '\t%.0s' $(seq 1 "$(($INDENT_LEVEL + 1))"))  # Pre-calculate TABS for remote
+remote_tabs=$(printf '\t%.0s' $(seq 1 "$(($INDENT_LEVEL + 1))"))
 cat <<EOF > "$temp_dir_script"
 #!/bin/bash
 TABS='$remote_tabs'
@@ -113,6 +113,8 @@ fi
 echo "\${TABS}\$TEMP_DIR"
 EOF
 chmod +x "$temp_dir_script"
+echo "${TABS}Local temp_dir_script content:"
+cat "$temp_dir_script" | sed "s/^/${TABS}/"
 
 echo "${TABS}Sending TEMP_DIR creation script to /tmp/create_temp_dir_${RANDOM_SUFFIX}"
 SCP_TEMP_OUTPUT=$(retry_cmd "scp -i ${SSH_KEY_LOCATION} ${SSH_OPTS} $temp_dir_script ${REMOTE_SERVER}:/tmp/create_temp_dir_${RANDOM_SUFFIX}" "couldn't scp TEMP_DIR script to $REMOTE_SERVER")
@@ -141,7 +143,7 @@ SCP_BUILD_OUTPUT=$(retry_cmd "scp -i ${SSH_KEY_LOCATION} ${SSH_OPTS} -r build ${
 echo -e "${TABS}${GREEN}Copied package to $TEMP_DIR${NC}"
 
 remote_script="/tmp/script${RANDOM_SUFFIX}"
-remote_tabs=$(printf '\t%.0s' $(seq 1 "$(($INDENT_LEVEL + 1))"))  # Pre-calculate TABS for remote
+remote_tabs=$(printf '\t%.0s' $(seq 1 "$(($INDENT_LEVEL + 1))"))
 cat <<EOF > /tmp/script
 #!/bin/bash
 TABS='$remote_tabs'
@@ -161,6 +163,8 @@ echo "\${TABS}upload_repo_${TYPE} completed successfully"
 exit 0
 EOF
 chmod +x /tmp/script
+echo "${TABS}Local remote_script content:"
+cat "/tmp/script${RANDOM_SUFFIX}" | sed "s/^/${TABS}/"
 
 echo "${TABS}Copying remote script to ${REMOTE_SERVER}:${remote_script}"
 SCP_SCRIPT_OUTPUT=$(retry_cmd "scp -i ${SSH_KEY_LOCATION} ${SSH_OPTS} /tmp/script ${REMOTE_SERVER}:${remote_script}" "couldn't scp script to $REMOTE_SERVER")
