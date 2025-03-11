@@ -7,7 +7,7 @@ NC='\033[0m'        # No Color
 export INDENT_LEVEL=${INDENT_LEVEL:-0}
 TABS=$(printf '\t%.0s' $(seq 1 "$INDENT_LEVEL"))
 
-echo "${TABS}version #9"  # Incremented to restore live output
+echo "${TABS}version #10"  # Incremented to debug execution
 
 echo "${TABS}Writing SSH key to ${SSH_KEY_LOCATION}"
 echo "${SSH_KEY}" > "${SSH_KEY_LOCATION}"
@@ -26,7 +26,6 @@ retry_cmd() {
     local attempt=1
     local exit_code
     local output_file="/tmp/output_$$_$RANDOM"
-    local error_file="/tmp/error_$$_$RANDOM"
     local live_file="/tmp/live_$$_$RANDOM"
     local build_copied=false
     local tabs=$(printf '\t%.0s' $(seq 1 "$INDENT_LEVEL"))
@@ -44,36 +43,31 @@ retry_cmd() {
 
         echo "${tabs}Attempt $attempt: $cmd"
         local exit_file="/tmp/exit_code_$$_$attempt"
-        # Run command, stream live with tee, capture stdout and stderr separately
-        bash -c "$cmd 2>$error_file | tee $live_file >$output_file; echo \$? > $exit_file"
+        # Run command, stream and capture all output live
+        bash -c "$cmd 2>&1 | tee $live_file >$output_file; echo \$? > $exit_file"
         exit_code=$(cat "$exit_file")
         cat "$live_file" | sed "s/^/${tabs}/"  # Stream combined stdout and stderr live
-        local clean_output=$(cat "$output_file")  # Capture clean stdout for return
-        local error_output=$(cat "$error_file")   # Capture stderr for error handling
+        local clean_output=$(cat "$output_file")  # Capture all output for return
         rm -f "$exit_file" "$live_file"
 
         if [ $exit_code -eq 0 ]; then
-            rm -f "$output_file" "$error_file"
-            printf '%s' "$clean_output"  # Return clean stdout to caller
+            rm -f "$output_file"
+            printf '%s' "$clean_output"  # Return clean output to caller
             return 0
         fi
 
         local output=$(cat "$output_file")
-        if [ $exit_code -eq 255 ] || echo "$error_output" | grep -qE "Connection reset by peer|Connection closed|Connection timed out|ssh:.*failed|scp:.*failed"; then
+        if [ $exit_code -eq 255 ] || echo "$output" | grep -qE "Connection reset by peer|Connection closed|Connection timed out|ssh:.*failed|scp:.*failed"; then
             if [ $attempt -eq $max_attempts ]; then
                 echo -e "${tabs}${RED}ERROR: $error_msg after $max_attempts network-related attempts${NC}"
                 echo "${tabs}Output:"
                 echo "$output" | sed "s/^/${tabs}/"
-                echo "${tabs}Error output:"
-                echo "$error_output" | sed "s/^/${tabs}/"
-                rm -f "$output_file" "$error_file"
+                rm -f "$output_file"
                 exit 1
             fi
             echo -e "${tabs}${RED}Network error detected (exit $exit_code), retrying in 2s...${NC}"
             echo "${tabs}Output:"
             echo "$output" | sed "s/^/${tabs}/"
-            echo "${tabs}Error output:"
-            echo "$error_output" | sed "s/^/${tabs}/"
             sleep 2
             if [ "$copy_build" = "true" ]; then
                 build_copied=false
@@ -82,9 +76,7 @@ retry_cmd() {
             echo -e "${tabs}${RED}ERROR: $error_msg (non-network error, exit $exit_code)$NC"
             echo "${tabs}Output:"
             echo "$output" | sed "s/^/${tabs}/"
-            echo "${tabs}Error output:"
-            echo "$error_output" | sed "s/^/${tabs}/"
-            rm -f "$output_file" "$error_file"
+            rm -f "$output_file"
             exit $exit_code
         fi
         ((attempt++))
@@ -133,8 +125,11 @@ TEMP_DIR=$(echo "$TEMP_DIR_OUTPUT" | grep -E "^/tmp/upload_to_repo_runs/run_" | 
 if [ -z "$TEMP_DIR" ] || [[ ! "$TEMP_DIR" =~ ^/tmp/upload_to_repo_runs/run_ ]]; then
     echo -e "${TABS}${RED}ERROR: TEMP_DIR assignment failed, got '$TEMP_DIR'${NC}"
     echo "${TABS}Full TEMP_DIR_OUTPUT:"
-    echo "$TEMP_DIR_OUTPUT" | sed "s/^/${TABS}/"
-    ssh -i "${SSH_KEY_LOCATION}" ${SSH_OPTS} "${REMOTE_SERVER}" "cat /tmp/create_temp_dir_${RANDOM_SUFFIX}" | sed "s/^/${TABS}/"
+    echo "$TEMP_DIR_OUTPUT" | sed "s/^/${tabs}/"
+    echo "${TABS}Checking remote script existence and permissions:"
+    retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} \"ls -l /tmp/create_temp_dir_${RANDOM_SUFFIX} || echo 'Script not found'\"" "couldn't check script existence"
+    echo "${TABS}Remote script content:"
+    ssh -i "${SSH_KEY_LOCATION}" ${SSH_OPTS} "${REMOTE_SERVER}" "cat /tmp/create_temp_dir_${RANDOM_SUFFIX}" | sed "s/^/${tabs}/"
     exit 1
 fi
 echo -e "${TABS}${GREEN}Temporary directory is $TEMP_DIR${NC}"
@@ -151,7 +146,7 @@ cat <<EOF > /tmp/script
 #!/bin/bash
 INDENT_LEVEL=\$((INDENT_LEVEL + 1))
 export INDENT_LEVEL
-TABS=\$(printf '\t%.0s' \$(seq 1 "\$INDENT_LEVEL"))
+TABS=\: \$(printf '\t%.0s' \$(seq 1 "\$INDENT_LEVEL"))
 echo "\${TABS}Starting remote script execution"
 cd "${TEMP_DIR}" || { echo "\${TABS}Failed to cd to ${TEMP_DIR}"; exit 1; }
 echo "\${TABS}Downloading https://raw.githubusercontent.com/manticoresoftware/publish_to_repo/feat/improve-output/upload_repo_${TYPE} to script"
