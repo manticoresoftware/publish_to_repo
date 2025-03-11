@@ -7,7 +7,7 @@ NC='\033[0m'        # No Color
 export INDENT_LEVEL=${INDENT_LEVEL:-0}
 TABS=$(printf '\t%.0s' $(seq 1 "$INDENT_LEVEL"))
 
-echo "${TABS}version #8"  # Incremented version
+echo "${TABS}version #9"  # Incremented to restore live output
 
 echo "${TABS}Writing SSH key to ${SSH_KEY_LOCATION}"
 echo "${SSH_KEY}" > "${SSH_KEY_LOCATION}"
@@ -27,6 +27,7 @@ retry_cmd() {
     local exit_code
     local output_file="/tmp/output_$$_$RANDOM"
     local error_file="/tmp/error_$$_$RANDOM"
+    local live_file="/tmp/live_$$_$RANDOM"
     local build_copied=false
     local tabs=$(printf '\t%.0s' $(seq 1 "$INDENT_LEVEL"))
 
@@ -43,22 +44,21 @@ retry_cmd() {
 
         echo "${tabs}Attempt $attempt: $cmd"
         local exit_file="/tmp/exit_code_$$_$attempt"
-        # Run command, capture output silently
-        bash -c "$cmd >$output_file 2>$error_file; echo \$? > $exit_file"
+        # Run command, stream live with tee, capture stdout and stderr separately
+        bash -c "$cmd 2>$error_file | tee $live_file >$output_file; echo \$? > $exit_file"
         exit_code=$(cat "$exit_file")
-        # Stream live output separately
-        cat "$output_file" | sed "s/^/${tabs}/"
-        local clean_output=$(cat "$output_file")  # Capture clean output
-        rm -f "$exit_file"
+        cat "$live_file" | sed "s/^/${tabs}/"  # Stream combined stdout and stderr live
+        local clean_output=$(cat "$output_file")  # Capture clean stdout for return
+        local error_output=$(cat "$error_file")   # Capture stderr for error handling
+        rm -f "$exit_file" "$live_file"
 
         if [ $exit_code -eq 0 ]; then
             rm -f "$output_file" "$error_file"
-            printf '%s' "$clean_output"  # Return only clean output, no extra newline
+            printf '%s' "$clean_output"  # Return clean stdout to caller
             return 0
         fi
 
         local output=$(cat "$output_file")
-        local error_output=$(cat "$error_file")
         if [ $exit_code -eq 255 ] || echo "$error_output" | grep -qE "Connection reset by peer|Connection closed|Connection timed out|ssh:.*failed|scp:.*failed"; then
             if [ $attempt -eq $max_attempts ]; then
                 echo -e "${tabs}${RED}ERROR: $error_msg after $max_attempts network-related attempts${NC}"
@@ -151,7 +151,7 @@ cat <<EOF > /tmp/script
 #!/bin/bash
 INDENT_LEVEL=\$((INDENT_LEVEL + 1))
 export INDENT_LEVEL
-TABS=\: \$(printf '\t%.0s' \$(seq 1 "\$INDENT_LEVEL"))
+TABS=\$(printf '\t%.0s' \$(seq 1 "\$INDENT_LEVEL"))
 echo "\${TABS}Starting remote script execution"
 cd "${TEMP_DIR}" || { echo "\${TABS}Failed to cd to ${TEMP_DIR}"; exit 1; }
 echo "\${TABS}Downloading https://raw.githubusercontent.com/manticoresoftware/publish_to_repo/feat/improve-output/upload_repo_${TYPE} to script"
