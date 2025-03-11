@@ -49,11 +49,6 @@ retry_cmd() {
         local clean_output=$(cat "$output_file" | grep -v "^${tabs}Attempt [0-9]+:")
         rm -f "$exit_file" "$live_file" "$output_file"
 
-        if [ $exit_code -eq 0 ]; then
-            echo "$clean_output"
-            return 0
-        fi
-
         if [ $exit_code -eq 255 ] || echo "$clean_output" | grep -qE "Connection reset by peer|Connection closed.*|Connection timed out|kex_exchange_identification|ssh:.*failed|scp:.*failed"; then
             if [ $attempt -eq $max_attempts ]; then
                 echo -e "${tabs}${RED}ERROR: $error_msg after $max_attempts network-related attempts${NC}" >&2
@@ -71,6 +66,11 @@ retry_cmd() {
             echo "${tabs}Output:" >&2
             echo "$clean_output" | sed "s/^/${tabs}/" >&2
             exit $exit_code
+        fi
+
+        if [ $exit_code -eq 0 ]; then
+            echo "$clean_output"
+            return 0
         fi
         ((attempt++))
     done
