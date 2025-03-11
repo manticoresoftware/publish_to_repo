@@ -7,7 +7,7 @@ NC='\033[0m'        # No Color
 export INDENT_LEVEL=${INDENT_LEVEL:-0}
 TABS=$(printf '\t%.0s' $(seq 1 "$INDENT_LEVEL"))
 
-echo "${TABS}version #28"  # Restore tee for live output
+echo "${TABS}version #29"  # True live output with tail
 
 echo "${TABS}Writing SSH key to ${SSH_KEY_LOCATION}"
 echo "${SSH_KEY}" > "${SSH_KEY_LOCATION}"
@@ -43,14 +43,18 @@ retry_cmd() {
 
         echo "${tabs}Attempt $attempt: $cmd" >&2
         local exit_file="/tmp/exit_code_$$_$attempt"
-        # Restore tee for live streaming, ensure output_file captures all
-        bash -c "$cmd 2>&1 | tee $live_file >$output_file; echo \$? > $exit_file"
-        exit_code=$(cat "$exit_file")
-        cat "$live_file" | sed "s/^/${tabs}/" >&2  # Live streaming
+        # Run command in background, tail live_file for real-time output
+        bash -c "stdbuf -oL -eL $cmd 2>&1 | tee $live_file >$output_file" &
+        local cmd_pid=$!
+        tail -f "$live_file" | sed "s/^/${tabs}/" >&2 &
+        local tail_pid=$!
+        wait $cmd_pid
+        exit_code=$?
+        kill $tail_pid 2>/dev/null
+        echo $exit_code > $exit_file
         local clean_output=$(cat "$output_file" | grep -v "^${tabs}Attempt [0-9]+:")
         rm -f "$exit_file" "$live_file" "$output_file"
 
-        # Retry on any non-zero exit code or error-like output
         if [ $exit_code -ne 0 ] || echo "$clean_output" | grep -qE "Connection reset by peer|Connection closed.*|Connection timed out|kex_exchange_identification|ssh:.*failed|scp:.*failed|error|failed"; then
             if [ $attempt -eq $max_attempts ]; then
                 echo -e "${tabs}${RED}ERROR: $error_msg after $max_attempts attempts${NC}" >&2
