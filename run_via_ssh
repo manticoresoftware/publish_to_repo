@@ -7,7 +7,7 @@ NC='\033[0m'        # No Color
 export INDENT_LEVEL=${INDENT_LEVEL:-0}
 TABS=$(printf '\t%.0s' $(seq 1 "$INDENT_LEVEL"))
 
-echo "${TABS}version #24"  # Robust SSH retry logic
+echo "${TABS}version #25"  # Single output display
 
 echo "${TABS}Writing SSH key to ${SSH_KEY_LOCATION}"
 echo "${SSH_KEY}" > "${SSH_KEY_LOCATION}"
@@ -45,7 +45,7 @@ retry_cmd() {
         local exit_file="/tmp/exit_code_$$_$attempt"
         bash -c "$cmd 2>&1 | tee $live_file >$output_file; echo \$? > $exit_file"
         exit_code=$(cat "$exit_file")
-        cat "$live_file" | sed "s/^/${tabs}/" >&2
+        # Removed live streaming: cat "$live_file" | sed "s/^/${tabs}/" >&2
         local clean_output=$(cat "$output_file" | grep -v "^${tabs}Attempt [0-9]+:")
         rm -f "$exit_file" "$live_file" "$output_file"
 
@@ -54,7 +54,6 @@ retry_cmd() {
             return 0
         fi
 
-        # Retry on any SSH failure (255) or specific error messages
         if [ $exit_code -eq 255 ] || echo "$clean_output" | grep -qE "Connection reset by peer|Connection closed.*|Connection timed out|kex_exchange_identification|ssh:.*failed|scp:.*failed"; then
             if [ $attempt -eq $max_attempts ]; then
                 echo -e "${tabs}${RED}ERROR: $error_msg after $max_attempts network-related attempts${NC}" >&2
