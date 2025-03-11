@@ -7,7 +7,7 @@ NC='\033[0m'        # No Color
 export INDENT_LEVEL=${INDENT_LEVEL:-0}
 TABS=$(printf '\t%.0s' $(seq 1 "$INDENT_LEVEL"))
 
-echo "${TABS}version #17"  # Incremented to fix output filtering
+echo "${TABS}version #18"  # Incremented to fix output capture
 
 echo "${TABS}Writing SSH key to ${SSH_KEY_LOCATION}"
 echo "${SSH_KEY}" > "${SSH_KEY_LOCATION}"
@@ -32,46 +32,46 @@ retry_cmd() {
 
     while [ $attempt -le $max_attempts ]; do
         if [ "$copy_build" = "true" ] && [ "$build_copied" = "false" ]; then
-            echo "${tabs}Attempt $attempt: Copying build to $TEMP_DIR before execution"
+            echo "${tabs}Attempt $attempt: Copying build to $TEMP_DIR before execution" >&2
             if ! ssh -i "${SSH_KEY_LOCATION}" ${SSH_OPTS} "${REMOTE_SERVER}" "[ -d \"$TEMP_DIR/build\" ]"; then
                 INDENT_LEVEL=$((INDENT_LEVEL + 1)) retry_cmd "scp -i ${SSH_KEY_LOCATION} ${SSH_OPTS} -r build ${REMOTE_SERVER}:${TEMP_DIR}/" "couldn't scp build to $REMOTE_SERVER"
                 build_copied=true
             else
-                echo "${tabs}Build directory already exists, skipping re-upload"
+                echo "${tabs}Build directory already exists, skipping re-upload" >&2
             fi
         fi
 
-        echo "${tabs}Attempt $attempt: $cmd"
+        echo "${tabs}Attempt $attempt: $cmd" >&2
         local exit_file="/tmp/exit_code_$$_$attempt"
         bash -c "$cmd 2>&1 | tee $live_file >$output_file; echo \$? > $exit_file"
         exit_code=$(cat "$exit_file")
-        cat "$live_file" | sed "s/^/${tabs}/"  # Stream live
+        cat "$live_file" | sed "s/^/${tabs}/" >&2  # Stream to stderr
         local clean_output=$(cat "$output_file" | grep -v "^${tabs}Attempt [0-9]+:")
         rm -f "$exit_file" "$live_file" "$output_file"
 
         if [ $exit_code -eq 0 ]; then
-            echo "$clean_output"  # Return clean output
+            echo "$clean_output"  # Return clean output to stdout
             return 0
         fi
 
         if [ $exit_code -eq 255 ] || echo "$clean_output" | grep -qE "Connection reset by peer|Connection closed|Connection timed out|ssh:.*failed|scp:.*failed"; then
             if [ $attempt -eq $max_attempts ]; then
-                echo -e "${tabs}${RED}ERROR: $error_msg after $max_attempts network-related attempts${NC}"
-                echo "${tabs}Output:"
-                echo "$clean_output" | sed "s/^/${tabs}/"
+                echo -e "${tabs}${RED}ERROR: $error_msg after $max_attempts network-related attempts${NC}" >&2
+                echo "${tabs}Output:" >&2
+                echo "$clean_output" | sed "s/^/${tabs}/" >&2
                 exit 1
             fi
-            echo -e "${tabs}${RED}Network error detected (exit $exit_code), retrying in 2s...${NC}"
-            echo "${tabs}Output:"
-            echo "$clean_output" | sed "s/^/${tabs}/"
+            echo -e "${tabs}${RED}Network error detected (exit $exit_code), retrying in 2s...${NC}" >&2
+            echo "${tabs}Output:" >&2
+            echo "$clean_output" | sed "s/^/${tabs}/" >&2
             sleep 2
             if [ "$copy_build" = "true" ]; then
                 build_copied=false
             fi
         else
-            echo -e "${tabs}${RED}ERROR: $error_msg (non-network error, exit $exit_code)$NC"
-            echo "${tabs}Output:"
-            echo "$clean_output" | sed "s/^/${tabs}/"
+            echo -e "${tabs}${RED}ERROR: $error_msg (non-network error, exit $exit_code)$NC" >&2
+            echo "${tabs}Output:" >&2
+            echo "$clean_output" | sed "s/^/${tabs}/" >&2
             exit $exit_code
         fi
         ((attempt++))
