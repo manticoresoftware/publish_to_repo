@@ -7,7 +7,7 @@ NC='\033[0m'        # No Color
 export INDENT_LEVEL=${INDENT_LEVEL:-0}
 TABS=$(printf '\t%.0s' $(seq 1 "$INDENT_LEVEL"))
 
-echo "${TABS}version #7"  # Incremented version
+echo "${TABS}version #8"  # Incremented version
 
 echo "${TABS}Writing SSH key to ${SSH_KEY_LOCATION}"
 echo "${SSH_KEY}" > "${SSH_KEY_LOCATION}"
@@ -43,16 +43,17 @@ retry_cmd() {
 
         echo "${tabs}Attempt $attempt: $cmd"
         local exit_file="/tmp/exit_code_$$_$attempt"
-        # Run command, capture output silently, stream live separately
+        # Run command, capture output silently
         bash -c "$cmd >$output_file 2>$error_file; echo \$? > $exit_file"
         exit_code=$(cat "$exit_file")
-        cat "$output_file" | sed "s/^/${tabs}/"  # Stream live output with indentation
+        # Stream live output separately
+        cat "$output_file" | sed "s/^/${tabs}/"
         local clean_output=$(cat "$output_file")  # Capture clean output
         rm -f "$exit_file"
 
         if [ $exit_code -eq 0 ]; then
             rm -f "$output_file" "$error_file"
-            printf '%s\n' "$clean_output"  # Return clean output to caller
+            printf '%s' "$clean_output"  # Return only clean output, no extra newline
             return 0
         fi
 
@@ -99,26 +100,26 @@ cat <<EOF > "$temp_dir_script"
 INDENT_LEVEL=\$((INDENT_LEVEL + 1))
 TABS=\$(printf '\t%.0s' \$(seq 1 "\$INDENT_LEVEL"))
 BASE_DIR=/tmp/upload_to_repo_runs
-echo "\${TABS}Remote: ${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${RANDOM_SUFFIX}"
+echo "Remote: ${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${RANDOM_SUFFIX}"
 RUN_ID=${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${RANDOM_SUFFIX}
 TEMP_DIR=\${BASE_DIR}/run_\${RUN_ID}
 for dir in "\${BASE_DIR}"/run_${GITHUB_RUN_ID}_*; do
   if [[ "\$dir" =~ run_${GITHUB_RUN_ID}_([0-9]+)_.*$ ]]; then
     attempt="\${BASH_REMATCH[1]}"
     if [ "\$attempt" -lt ${GITHUB_RUN_ATTEMPT} ]; then
-      echo "\${TABS}Removing outdated attempt directory: \$dir"
+      echo "Removing outdated attempt directory: \$dir"
       rm -rf "\$dir"
     fi
   fi
 done
-mkdir -p \$TEMP_DIR/build || { echo "\${TABS}Failed to create \$TEMP_DIR/build"; exit 1; }
+mkdir -p \$TEMP_DIR/build || { echo "Failed to create \$TEMP_DIR/build"; exit 1; }
 if [ -d "\$TEMP_DIR/build" ]; then
-  echo "\${TABS}Created: \$TEMP_DIR/build"
+  echo "Created: \$TEMP_DIR/build"
 else
-  echo "\${TABS}Error: \$TEMP_DIR/build not found after creation"
+  echo "Error: \$TEMP_DIR/build not found after creation"
   exit 1
 fi
-echo "\${TABS}\$TEMP_DIR"
+echo "\$TEMP_DIR"
 EOF
 chmod +x "$temp_dir_script"
 
@@ -127,7 +128,7 @@ SCP_TEMP_OUTPUT=$(retry_cmd "scp -i ${SSH_KEY_LOCATION} ${SSH_OPTS} $temp_dir_sc
 
 echo "${TABS}Creating TEMP_DIR on remote server"
 TEMP_DIR_OUTPUT=$(retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} \"bash /tmp/create_temp_dir_${RANDOM_SUFFIX}\"" "couldn't create TEMP_DIR on remote server")
-TEMP_DIR=$(echo "$TEMP_DIR_OUTPUT" | grep -E "^\t*/tmp/upload_to_repo_runs/run_" | tail -n 1 | sed 's/^\t*//')
+TEMP_DIR=$(echo "$TEMP_DIR_OUTPUT" | grep -E "^/tmp/upload_to_repo_runs/run_" | tail -n 1)
 
 if [ -z "$TEMP_DIR" ] || [[ ! "$TEMP_DIR" =~ ^/tmp/upload_to_repo_runs/run_ ]]; then
     echo -e "${TABS}${RED}ERROR: TEMP_DIR assignment failed, got '$TEMP_DIR'${NC}"
@@ -150,7 +151,7 @@ cat <<EOF > /tmp/script
 #!/bin/bash
 INDENT_LEVEL=\$((INDENT_LEVEL + 1))
 export INDENT_LEVEL
-TABS=\$(printf '\t%.0s' \$(seq 1 "\$INDENT_LEVEL"))
+TABS=\: \$(printf '\t%.0s' \$(seq 1 "\$INDENT_LEVEL"))
 echo "\${TABS}Starting remote script execution"
 cd "${TEMP_DIR}" || { echo "\${TABS}Failed to cd to ${TEMP_DIR}"; exit 1; }
 echo "\${TABS}Downloading https://raw.githubusercontent.com/manticoresoftware/publish_to_repo/feat/improve-output/upload_repo_${TYPE} to script"
