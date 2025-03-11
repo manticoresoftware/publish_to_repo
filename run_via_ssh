@@ -7,7 +7,7 @@ NC='\033[0m'        # No Color
 export INDENT_LEVEL=${INDENT_LEVEL:-0}
 TABS=$(printf '\t%.0s' $(seq 1 "$INDENT_LEVEL"))
 
-echo "${TABS}version #19"  # Incremented to fix tab count
+echo "${TABS}version #22"  # Simplified parsing with grep and trim
 
 echo "${TABS}Writing SSH key to ${SSH_KEY_LOCATION}"
 echo "${SSH_KEY}" > "${SSH_KEY_LOCATION}"
@@ -45,12 +45,12 @@ retry_cmd() {
         local exit_file="/tmp/exit_code_$$_$attempt"
         bash -c "$cmd 2>&1 | tee $live_file >$output_file; echo \$? > $exit_file"
         exit_code=$(cat "$exit_file")
-        cat "$live_file" | sed "s/^/${tabs}/" >&2  # Stream to stderr
+        cat "$live_file" | sed "s/^/${tabs}/" >&2
         local clean_output=$(cat "$output_file" | grep -v "^${tabs}Attempt [0-9]+:")
         rm -f "$exit_file" "$live_file" "$output_file"
 
         if [ $exit_code -eq 0 ]; then
-            echo "$clean_output"  # Return clean output to stdout
+            echo "$clean_output"
             return 0
         fi
 
@@ -117,14 +117,9 @@ SCP_TEMP_OUTPUT=$(retry_cmd "scp -i ${SSH_KEY_LOCATION} ${SSH_OPTS} $temp_dir_sc
 
 echo "${TABS}Creating TEMP_DIR on remote server"
 TEMP_DIR_OUTPUT=$(retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} \"bash /tmp/create_temp_dir_${RANDOM_SUFFIX}\"" "couldn't create TEMP_DIR on remote server")
-echo "${TABS}Raw TEMP_DIR_OUTPUT (normal):"
-
-echo "${TABS}Raw TEMP_DIR_OUTPUT (hex dump):"
-echo "$TEMP_DIR_OUTPUT" | od -c | sed "s/^/${TABS}/"
-
-echo "Tempdir bash ->>>> "
-echo "$TEMP_DIR_OUTPUT" | grep -E "^\t\t/tmp/upload_to_repo_runs/run_"
-TEMP_DIR=$(echo "$TEMP_DIR_OUTPUT" | grep -E "^\t\t/tmp/upload_to_repo_runs/run_" | tail -n 1 )
+echo "${TABS}Raw TEMP_DIR_OUTPUT:"
+echo "$TEMP_DIR_OUTPUT" | sed "s/^/${TABS}/"
+TEMP_DIR=$(echo "$TEMP_DIR_OUTPUT" | grep -E "/tmp/upload_to_repo_runs/run_" | tail -n 1 | sed 's/^\s*//')
 
 if [ -z "$TEMP_DIR" ] || [[ ! "$TEMP_DIR" =~ ^/tmp/upload_to_repo_runs/run_ ]]; then
     echo -e "${TABS}${RED}ERROR: TEMP_DIR assignment failed, got '$TEMP_DIR'${NC}"
