@@ -7,7 +7,7 @@ NC='\033[0m'        # No Color
 export INDENT_LEVEL=${INDENT_LEVEL:-0}
 TABS=$(printf '\t%.0s' $(seq 1 "$INDENT_LEVEL"))
 
-echo "${TABS}version #18"  # Incremented to fix output capture
+echo "${TABS}version #19"  # Incremented to fix tab count
 
 echo "${TABS}Writing SSH key to ${SSH_KEY_LOCATION}"
 echo "${SSH_KEY}" > "${SSH_KEY_LOCATION}"
@@ -119,7 +119,7 @@ echo "${TABS}Creating TEMP_DIR on remote server"
 TEMP_DIR_OUTPUT=$(retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} \"bash /tmp/create_temp_dir_${RANDOM_SUFFIX}\"" "couldn't create TEMP_DIR on remote server")
 echo "${TABS}Raw TEMP_DIR_OUTPUT (hex dump):"
 echo "$TEMP_DIR_OUTPUT" | od -c | sed "s/^/${TABS}/"
-TEMP_DIR=$(echo "$TEMP_DIR_OUTPUT" | grep -E "^\t\t/tmp/upload_to_repo_runs/run_" | tail -n 1 | sed 's/^\t\t//')
+TEMP_DIR=$(echo "$TEMP_DIR_OUTPUT" | grep -E "^\t/tmp/upload_to_repo_runs/run_" | tail -n 1 | sed 's/^\t//')
 
 if [ -z "$TEMP_DIR" ] || [[ ! "$TEMP_DIR" =~ ^/tmp/upload_to_repo_runs/run_ ]]; then
     echo -e "${TABS}${RED}ERROR: TEMP_DIR assignment failed, got '$TEMP_DIR'${NC}"
