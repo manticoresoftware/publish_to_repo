@@ -7,7 +7,7 @@ NC='\033[0m'        # No Color
 export INDENT_LEVEL=${INDENT_LEVEL:-0}
 TABS=$(printf '\t%.0s' $(seq 1 "$INDENT_LEVEL"))
 
-echo "${TABS}version #13"  # Incremented to fix variable expansion
+echo "${TABS}version #14"  # Incremented to pass TABS directly
 
 echo "${TABS}Writing SSH key to ${SSH_KEY_LOCATION}"
 echo "${SSH_KEY}" > "${SSH_KEY_LOCATION}"
@@ -86,10 +86,10 @@ echo "${TABS}Creating base directory /tmp/upload_to_repo_runs"
 BASE_DIR_OUTPUT=$(retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} \"mkdir -p /tmp/upload_to_repo_runs || exit 1\"" "couldn't create base directory")
 
 temp_dir_script="/tmp/create_temp_dir_$$"
+remote_tabs=$(printf '\t%.0s' $(seq 1 "$(($INDENT_LEVEL + 1))"))  # Pre-calculate TABS for remote
 cat <<EOF > "$temp_dir_script"
 #!/bin/bash
-INDENT_LEVEL=\$((INDENT_LEVEL + 1))
-TABS=\$(printf '\t%.0s' \$(seq 1 "\$INDENT_LEVEL")) || { echo "Failed to set TABS"; exit 1; }
+TABS='$remote_tabs'
 BASE_DIR=/tmp/upload_to_repo_runs
 echo "\${TABS}Remote: ${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${RANDOM_SUFFIX}"
 RUN_ID=${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${RANDOM_SUFFIX}
@@ -119,7 +119,7 @@ SCP_TEMP_OUTPUT=$(retry_cmd "scp -i ${SSH_KEY_LOCATION} ${SSH_OPTS} $temp_dir_sc
 
 echo "${TABS}Creating TEMP_DIR on remote server"
 TEMP_DIR_OUTPUT=$(retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} \"bash /tmp/create_temp_dir_${RANDOM_SUFFIX}\"" "couldn't create TEMP_DIR on remote server")
-TEMP_DIR=$(echo "$TEMP_DIR_OUTPUT" | grep -E "^\t*/tmp/upload_to_repo_runs/run_" | tail -n 1 | sed 's/^\t*//')
+TEMP_DIR=$(echo "$TEMP_DIR_OUTPUT" | grep -E "^\t+/tmp/upload_to_repo_runs/run_" | tail -n 1 | sed 's/^\t+//')
 
 if [ -z "$TEMP_DIR" ] || [[ ! "$TEMP_DIR" =~ ^/tmp/upload_to_repo_runs/run_ ]]; then
     echo -e "${TABS}${RED}ERROR: TEMP_DIR assignment failed, got '$TEMP_DIR'${NC}"
@@ -141,17 +141,17 @@ SCP_BUILD_OUTPUT=$(retry_cmd "scp -i ${SSH_KEY_LOCATION} ${SSH_OPTS} -r build ${
 echo -e "${TABS}${GREEN}Copied package to $TEMP_DIR${NC}"
 
 remote_script="/tmp/script${RANDOM_SUFFIX}"
+remote_tabs=$(printf '\t%.0s' $(seq 1 "$(($INDENT_LEVEL + 1))"))  # Pre-calculate TABS for remote
 cat <<EOF > /tmp/script
 #!/bin/bash
-INDENT_LEVEL=\$((INDENT_LEVEL + 1))
-TABS=\$(printf '\t%.0s' \$(seq 1 "\$INDENT_LEVEL")) || { echo "Failed to set TABS"; exit 1; }
+TABS='$remote_tabs'
 echo "\${TABS}Starting remote script execution"
 cd "${TEMP_DIR}" || { echo "\${TABS}Failed to cd to ${TEMP_DIR}"; exit 1; }
 echo "\${TABS}Downloading https://raw.githubusercontent.com/manticoresoftware/publish_to_repo/feat/improve-output/upload_repo_${TYPE} to script"
 curl -sSL "https://raw.githubusercontent.com/manticoresoftware/publish_to_repo/feat/improve-output/upload_repo_${TYPE}" > script || { echo "\${TABS}Failed to download upload_repo_${TYPE}"; exit 1; }
 chmod +x script
 echo "\${TABS}Running upload_repo_${TYPE} script"
-INDENT_LEVEL=\$INDENT_LEVEL DISTRO="${DISTR}" DIGIT_DELIMITER2="${DELIMITER}" TARGET="${TARGET}" DRY_RUN="${DRY_RUN}" ./script
+INDENT_LEVEL=${INDENT_LEVEL:-0} DISTRO="${DISTR}" DIGIT_DELIMITER2="${DELIMITER}" TARGET="${TARGET}" DRY_RUN="${DRY_RUN}" ./script
 EXIT_CODE=\$?  # Capture exit status
 if [ "\$EXIT_CODE" -ne 0 ]; then
   echo "\${TABS}upload_repo_${TYPE} failed with exit code \$EXIT_CODE"
