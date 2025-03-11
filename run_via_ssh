@@ -7,7 +7,7 @@ NC='\033[0m'        # No Color
 export INDENT_LEVEL=${INDENT_LEVEL:-0}
 TABS=$(printf '\t%.0s' $(seq 1 "$INDENT_LEVEL"))
 
-echo "${TABS}version #25"  # Single output display
+echo "${TABS}version #26"  # Restore live output, no duplication
 
 echo "${TABS}Writing SSH key to ${SSH_KEY_LOCATION}"
 echo "${SSH_KEY}" > "${SSH_KEY_LOCATION}"
@@ -45,7 +45,7 @@ retry_cmd() {
         local exit_file="/tmp/exit_code_$$_$attempt"
         bash -c "$cmd 2>&1 | tee $live_file >$output_file; echo \$? > $exit_file"
         exit_code=$(cat "$exit_file")
-        # Removed live streaming: cat "$live_file" | sed "s/^/${tabs}/" >&2
+        cat "$live_file" | sed "s/^/${tabs}/" >&2  # Restore live streaming
         local clean_output=$(cat "$output_file" | grep -v "^${tabs}Attempt [0-9]+:")
         rm -f "$exit_file" "$live_file" "$output_file"
 
@@ -169,8 +169,7 @@ echo -e "${TABS}${GREEN}Copied script to ${REMOTE_SERVER}:${remote_script}${NC}"
 echo "${TABS}Executing remote script ${remote_script}"
 echo "${TABS}Waiting for remote script to complete (this may take a few minutes)..."
 EXEC_OUTPUT=$(retry_cmd "ssh -t -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} ${remote_script}" "script failed via ssh" "true")
-echo "${TABS}Remote script output:"
-echo "$EXEC_OUTPUT" | sed "s/^/${TABS}/"
+# Removed: echo "${TABS}Remote script output:" and echo "$EXEC_OUTPUT" | sed ...
 
 echo "${TABS}Cleanup: remove TEMP_DIR ${TEMP_DIR}"
 CLEANUP_TEMP_OUTPUT=$(retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} \"rm -rf ${TEMP_DIR}\"" "failed to cleanup TEMP_DIR via ssh")
