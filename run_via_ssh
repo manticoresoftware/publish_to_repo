@@ -7,7 +7,7 @@ NC='\033[0m'        # No Color
 export INDENT_LEVEL=${INDENT_LEVEL:-0}
 TABS=$(printf '\t%.0s' $(seq 1 "$INDENT_LEVEL"))
 
-echo "${TABS}version #30"  # Reliable live output with unbuffer
+echo "${TABS}version #31"  # Live output without unbuffer
 
 echo "${TABS}Writing SSH key to ${SSH_KEY_LOCATION}"
 echo "${SSH_KEY}" > "${SSH_KEY_LOCATION}"
@@ -43,11 +43,11 @@ retry_cmd() {
 
         echo "${tabs}Attempt $attempt: $cmd" >&2
         local exit_file="/tmp/exit_code_$$_$attempt"
-        # Use unbuffer to force line buffering, tee for live and capture
-        unbuffer bash -c "$cmd 2>&1 | tee $live_file >$output_file; echo \$? > $exit_file"
-        exit_code=$(cat "$exit_file")
+        # Use script to force line buffering and capture exit code
+        script -q -c "bash -c '$cmd'" $live_file >$output_file 2>/dev/null
+        exit_code=$(tail -n 1 "$output_file" | grep -o '[0-9]\+$' || echo 1)  # Extract exit code from script output
         cat "$live_file" | sed "s/^/${tabs}/" >&2  # Live streaming
-        local clean_output=$(cat "$output_file" | grep -v "^${tabs}Attempt [0-9]+:")
+        local clean_output=$(cat "$output_file" | grep -v "^${tabs}Attempt [0-9]+:" | sed '$d')  # Remove exit code line
         rm -f "$exit_file" "$live_file" "$output_file"
 
         if [ $exit_code -ne 0 ] || echo "$clean_output" | grep -qE "Connection reset by peer|Connection closed.*|Connection timed out|kex_exchange_identification|ssh:.*failed|scp:.*failed|error|failed"; then
@@ -138,7 +138,7 @@ echo -e "${TABS}${GREEN}Copied package to $TEMP_DIR${NC}"
 
 remote_script="/tmp/script${RANDOM_SUFFIX}"
 remote_tabs=$(printf '\t%.0s' $(seq 1 "$(($INDENT_LEVEL + 1))"))
-cat <<EOF > "$remote_script"  # Fixed file path
+cat <<EOF > "$remote_script"
 #!/bin/bash
 TABS='$remote_tabs'
 echo "\${TABS}Starting remote script execution"
