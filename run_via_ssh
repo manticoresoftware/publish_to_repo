@@ -7,7 +7,7 @@ NC='\033[0m'        # No Color
 export INDENT_LEVEL=${INDENT_LEVEL:-0}
 TABS=$(printf '\t%.0s' $(seq 1 "$INDENT_LEVEL"))
 
-echo "${TABS}version #29"  # True live output with tail
+echo "${TABS}version #30"  # Reliable live output with unbuffer
 
 echo "${TABS}Writing SSH key to ${SSH_KEY_LOCATION}"
 echo "${SSH_KEY}" > "${SSH_KEY_LOCATION}"
@@ -43,15 +43,10 @@ retry_cmd() {
 
         echo "${tabs}Attempt $attempt: $cmd" >&2
         local exit_file="/tmp/exit_code_$$_$attempt"
-        # Run command in background, tail live_file for real-time output
-        bash -c "stdbuf -oL -eL $cmd 2>&1 | tee $live_file >$output_file" &
-        local cmd_pid=$!
-        tail -f "$live_file" | sed "s/^/${tabs}/" >&2 &
-        local tail_pid=$!
-        wait $cmd_pid
-        exit_code=$?
-        kill $tail_pid 2>/dev/null
-        echo $exit_code > $exit_file
+        # Use unbuffer to force line buffering, tee for live and capture
+        unbuffer bash -c "$cmd 2>&1 | tee $live_file >$output_file; echo \$? > $exit_file"
+        exit_code=$(cat "$exit_file")
+        cat "$live_file" | sed "s/^/${tabs}/" >&2  # Live streaming
         local clean_output=$(cat "$output_file" | grep -v "^${tabs}Attempt [0-9]+:")
         rm -f "$exit_file" "$live_file" "$output_file"
 
@@ -143,7 +138,7 @@ echo -e "${TABS}${GREEN}Copied package to $TEMP_DIR${NC}"
 
 remote_script="/tmp/script${RANDOM_SUFFIX}"
 remote_tabs=$(printf '\t%.0s' $(seq 1 "$(($INDENT_LEVEL + 1))"))
-cat <<EOF > /tmp/script
+cat <<EOF > "$remote_script"  # Fixed file path
 #!/bin/bash
 TABS='$remote_tabs'
 echo "\${TABS}Starting remote script execution"
@@ -161,12 +156,11 @@ fi
 echo "\${TABS}upload_repo_${TYPE} completed successfully"
 exit 0
 EOF
-chmod +x /tmp/script
-echo "${TABS}Local remote_script content:"
-cat "/tmp/script${RANDOM_SUFFIX}" | sed "s/^/${TABS}/"
+chmod +x "$remote_script"
+
 
 echo "${TABS}Copying remote script to ${REMOTE_SERVER}:${remote_script}"
-SCP_SCRIPT_OUTPUT=$(retry_cmd "scp -i ${SSH_KEY_LOCATION} ${SSH_OPTS} /tmp/script ${REMOTE_SERVER}:${remote_script}" "couldn't scp script to $REMOTE_SERVER")
+SCP_SCRIPT_OUTPUT=$(retry_cmd "scp -i ${SSH_KEY_LOCATION} ${SSH_OPTS} $remote_script ${REMOTE_SERVER}:${remote_script}" "couldn't scp script to $REMOTE_SERVER")
 echo -e "${TABS}${GREEN}Copied script to ${REMOTE_SERVER}:${remote_script}${NC}"
 
 echo "${TABS}Executing remote script ${remote_script}"
