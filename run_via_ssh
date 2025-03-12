@@ -7,7 +7,7 @@ NC='\033[0m'        # No Color
 export INDENT_LEVEL=${INDENT_LEVEL:-0}
 TABS=$(printf '\t%.0s' $(seq 1 "$INDENT_LEVEL"))
 
-echo "${TABS}version #31"  # Live output without unbuffer
+echo "${TABS}version #32"
 
 echo "${TABS}Writing SSH key to ${SSH_KEY_LOCATION}"
 echo "${SSH_KEY}" > "${SSH_KEY_LOCATION}"
