@@ -26,7 +26,6 @@ retry_cmd() {
     local attempt=1
     local exit_code
     local output_file="/tmp/output_$$_$RANDOM"
-    local live_file="/tmp/live_$$_$RANDOM"
     local build_copied=false
     local tabs=$(printf '\t%.0s' $(seq 1 "$INDENT_LEVEL"))
 
@@ -43,14 +42,14 @@ retry_cmd() {
 
         echo "${tabs}Attempt $attempt: $cmd" >&2
         local exit_file="/tmp/exit_code_$$_$attempt"
-        # Use script to force line buffering and capture exit code
-        script -q -c "bash -c '$cmd'" $live_file >$output_file 2>/dev/null
-        exit_code=$(tail -n 1 "$output_file" | grep -o '[0-9]\+$' || echo 1)  # Extract exit code from script output
-        cat "$live_file" | sed "s/^/${tabs}/" >&2  # Live streaming
-        local clean_output=$(cat "$output_file" | grep -v "^${tabs}Attempt [0-9]+:" | sed '$d')  # Remove exit code line
-        rm -f "$exit_file" "$live_file" "$output_file"
 
-        if [ $exit_code -ne 0 ] || echo "$clean_output" | grep -qE "Connection reset by peer|Connection closed.*|Connection timed out|kex_exchange_identification|ssh:.*failed|scp:.*failed|error|failed"; then
+        bash -c "$cmd 2>&1 | tee $output_file; echo \${PIPESTATUS[0]} > $exit_file"
+        exit_code=$(cat $exit_file)
+
+        local clean_output=$(cat "$output_file")
+        rm -f "$exit_file" "$output_file"
+
+        if [ $exit_code -ne 0 ] || echo "$clean_output" | grep -qE "Connection reset by peer|Connection closed.*|Connection timed out|kex_exchange_identification|ssh:.*failed|scp:.*failed"; then
             if [ $attempt -eq $max_attempts ]; then
                 echo -e "${tabs}${RED}ERROR: $error_msg after $max_attempts attempts${NC}" >&2
                 echo "${tabs}Output:" >&2
@@ -108,13 +107,12 @@ echo "\${TABS}\$TEMP_DIR"
 EOF
 chmod +x "$temp_dir_script"
 
-echo "${TABS}Sending TEMP_DIR creation script to /tmp/create_temp_dir_${RANDOM_SUFFIX}"
-SCP_TEMP_OUTPUT=$(retry_cmd "scp -i ${SSH_KEY_LOCATION} ${SSH_OPTS} $temp_dir_script ${REMOTE_SERVER}:/tmp/create_temp_dir_${RANDOM_SUFFIX}" "couldn't scp TEMP_DIR script to $REMOTE_SERVER")
+echo "${TABS}Sending TEMP_DIR creation script to /tmp/create_temp_dir__${RANDOM_SUFFIX}"
+retry_cmd "scp -i ${SSH_KEY_LOCATION} ${SSH_OPTS} $temp_dir_script ${REMOTE_SERVER}:/tmp/create_temp_dir__${RANDOM_SUFFIX}" "couldn't scp TEMP_DIR script to $REMOTE_SERVER"
 
 echo "${TABS}Creating TEMP_DIR on remote server"
-TEMP_DIR_OUTPUT=$(retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} \"bash /tmp/create_temp_dir_${RANDOM_SUFFIX}\"" "couldn't create TEMP_DIR on remote server")
-echo "${TABS}Raw TEMP_DIR_OUTPUT:"
-echo "$TEMP_DIR_OUTPUT" | sed "s/^/${TABS}/"
+TEMP_DIR_OUTPUT=$(retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} \"bash /tmp/create_temp_dir__${RANDOM_SUFFIX}\"" "couldn't create TEMP_DIR on remote server")
+
 TEMP_DIR=$(echo "$TEMP_DIR_OUTPUT" | grep -E "/tmp/upload_to_repo_runs/run_" | tail -n 1 | sed 's/^\s*//')
 
 if [ -z "$TEMP_DIR" ] || [[ ! "$TEMP_DIR" =~ ^/tmp/upload_to_repo_runs/run_ ]]; then
@@ -122,9 +120,9 @@ if [ -z "$TEMP_DIR" ] || [[ ! "$TEMP_DIR" =~ ^/tmp/upload_to_repo_runs/run_ ]]; 
     echo "${TABS}Full TEMP_DIR_OUTPUT:"
     echo "$TEMP_DIR_OUTPUT" | sed "s/^/${TABS}/"
     echo "${TABS}Checking remote script existence and permissions:"
-    retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} \"ls -l /tmp/create_temp_dir_${RANDOM_SUFFIX} || echo 'Script not found'\"" "couldn't check script existence"
+    retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} \"ls -l /tmp/create_temp_dir__${RANDOM_SUFFIX} || echo 'Script not found'\"" "couldn't check script existence"
     echo "${TABS}Remote script content:"
-    ssh -i "${SSH_KEY_LOCATION}" ${SSH_OPTS} "${REMOTE_SERVER}" "cat /tmp/create_temp_dir_${RANDOM_SUFFIX}" | sed "s/^/${TABS}/"
+    ssh -i "${SSH_KEY_LOCATION}" ${SSH_OPTS} "${REMOTE_SERVER}" "cat /tmp/create_temp_dir__${RANDOM_SUFFIX}" | sed "s/^/${TABS}/"
     exit 1
 fi
 echo -e "${TABS}${GREEN}Temporary directory is $TEMP_DIR${NC}"
@@ -158,16 +156,14 @@ exit 0
 EOF
 chmod +x "$remote_script"
 
-
 echo "${TABS}Copying remote script to ${REMOTE_SERVER}:${remote_script}"
-SCP_SCRIPT_OUTPUT=$(retry_cmd "scp -i ${SSH_KEY_LOCATION} ${SSH_OPTS} $remote_script ${REMOTE_SERVER}:${remote_script}" "couldn't scp script to $REMOTE_SERVER")
+retry_cmd "scp -i ${SSH_KEY_LOCATION} ${SSH_OPTS} $remote_script ${REMOTE_SERVER}:${remote_script}" "couldn't scp script to $REMOTE_SERVER"
 echo -e "${TABS}${GREEN}Copied script to ${REMOTE_SERVER}:${remote_script}${NC}"
 
 echo "${TABS}Executing remote script ${remote_script}"
-echo "${TABS}Waiting for remote script to complete (this may take a few minutes)..."
-EXEC_OUTPUT=$(retry_cmd "ssh -t -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} ${remote_script}" "script failed via ssh" "true")
+retry_cmd "ssh -t -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} ${remote_script}" "script failed via ssh" "true"
 
 echo "${TABS}Cleanup: remove TEMP_DIR ${TEMP_DIR}"
 CLEANUP_TEMP_OUTPUT=$(retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} \"rm -rf ${TEMP_DIR}\"" "failed to cleanup TEMP_DIR via ssh")
-CLEANUP_SCRIPT_OUTPUT=$(retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} \"rm -f ${remote_script} /tmp/create_temp_dir_${RANDOM_SUFFIX}\"" "failed to cleanup scripts via ssh")
+CLEANUP_SCRIPT_OUTPUT=$(retry_cmd "ssh -i ${SSH_KEY_LOCATION} ${SSH_OPTS} ${REMOTE_SERVER} \"rm -f ${remote_script} /tmp/create_temp_dir__${RANDOM_SUFFIX}\"" "failed to cleanup scripts via ssh")
 echo -e "${TABS}${GREEN}Cleanup of ${TEMP_DIR}, ${remote_script}, and temp_dir_script completed${NC}"
