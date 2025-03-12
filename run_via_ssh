@@ -63,7 +63,6 @@ retry_cmd() {
             fi
         else
             if [ $exit_code -eq 0 ]; then
-                echo "$clean_output"
                 return 0
             fi
             echo -e "${tabs}${RED}ERROR: $error_msg (unexpected error, exit $exit_code)$NC" >&2
