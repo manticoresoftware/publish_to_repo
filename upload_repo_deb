@@ -1,6 +1,14 @@
 #!/usr/bin/env bash
 # from outside: $DISTRO = stretch,buster,xenial,bionic,focal,jammy,bullseye,bookworm
-# That file here is for reference; actually used the one stored on the host to avoid checkout of the whole code
+
+RED='\033[0;31m'    # For errors
+GREEN='\033[0;32m'  # For success
+BLUE='\033[0;34m'   # For info
+NC='\033[0m'        # No Color
+
+# Set indentation level from parent script (remote_script)
+INDENT_LEVEL=${INDENT_LEVEL:-0}
+TABS=$(printf '\t%.0s' $(seq 1 "$INDENT_LEVEL"))
 
 if [ -z "${BUILD_FOLDER+x}" ]; then
   BUILD_FOLDER="build/"
@@ -22,27 +30,36 @@ if [ -z "${DIGIT_FIELD2+x}" ]; then
   DIGIT_FIELD2=1
 fi
 
-echo "Uploading $DISTRO"
-echo "Collected debian packages in $BUILD_FOLDER"
-ls "$BUILD_FOLDER"
+echo -e "${TABS}${BLUE}Uploading $DISTRO${NC}"
+echo -e "${TABS}${BLUE}Collected debian packages in $BUILD_FOLDER${NC}"
+ls "$BUILD_FOLDER" | sed "s/^/${TABS}/"
 
 set -e
 
 repo_generator() {
-  command="stdbuf -oL -eL /usr/bin/docker exec -i repo-generator /generator.sh $@"
-  echo "$command"
+  command="/usr/bin/docker exec -i repo-generator /generator.sh $@"
+  echo -e "${TABS}${BLUE}$command${NC}"
   if [ "$DRY_RUN" = "false" ]; then
-    eval "$command"
-    if [[ ! $? -eq 0 ]]; then echo "ERROR: command failed"; exit 1; fi
+    eval "$command" >temp_out 2>temp_err
+    exit_code=$?
+    cat temp_out | sed "s/^/${TABS}\t/"  # Indent generator.sh output one level deeper
+    if [[ $exit_code -ne 0 ]]; then
+      echo -e "${TABS}${RED}ERROR: command failed with exit code $exit_code${NC}"
+      echo "${TABS}Error output:"
+      cat temp_err | sed "s/^/${TABS}\t/"
+      rm -f temp_out temp_err
+      exit $exit_code
+    fi
+    rm -f temp_out temp_err  # Clean up without showing stderr on success
   fi
 }
 
-echo "Contents of ./$BUILD_FOLDER:"
-find "$BUILD_FOLDER"
+echo -e "${TABS}${BLUE}Contents of ./$BUILD_FOLDER:${NC}"
+find "$BUILD_FOLDER" | sed "s/^/${TABS}/"
 
 declare -A archs
 
-echo "Packages integrity check"
+echo -e "${TABS}${BLUE}Packages integrity check${NC}"
 for f in `find "$BUILD_FOLDER" -type f \( -name "*deb" \) | sort -t_ -k2 -r`; do
   if [ -z "$TARGET" ]; then
     DESTINATION="dev"
@@ -56,13 +73,13 @@ for f in `find "$BUILD_FOLDER" -type f \( -name "*deb" \) | sort -t_ -k2 -r`; do
 
   packageName="$(basename "$f")"
   if ! repo_generator --target "$DESTINATION" --distro "$DISTRO" --check-package --name "$packageName" "<$f"; then
-      echo "$packageName is corrupted. Abort uploading"
-      exit 1
+    echo -e "${TABS}${RED}$packageName is corrupted. Abort uploading${NC}"
+    exit 1
   fi
 done
 
 for f in `find "$BUILD_FOLDER" -type f \( -name "*deb" \)`; do
-  echo "file $f"
+  echo -e "${TABS}${BLUE}file $f${NC}"
   packageName="$(basename "$f")"
   VER=$(echo "$f" | cut -d_ -f2)
   if [[ "$f" == *"_amd64"* ]]; then
@@ -74,7 +91,7 @@ for f in `find "$BUILD_FOLDER" -type f \( -name "*deb" \)`; do
   else
     ARCH=""
   fi
-  echo "Arch: $ARCH"
+  echo -e "${TABS}${BLUE}Arch: $ARCH${NC}"
 
   if [ -f "$f" ]; then
     if [[ $DESTINATION == "dev" ]]; then
@@ -83,13 +100,10 @@ for f in `find "$BUILD_FOLDER" -type f \( -name "*deb" \)`; do
       SUFFIX=""
     fi
 
-    # check if we really need to put icudata to the repo this time
-    # notice: it still goes to bundle archives anyway
     if [[ $f == *icudata* ]]; then
       if [[ $PACK_ICUDATA == 1 ]]; then
         ARCH=all
       else
-        # dirty hack to skip this iteration
         ARCH=none
       fi
     fi
@@ -113,32 +127,32 @@ for f in `find "$BUILD_FOLDER" -type f \( -name "*deb" \)`; do
   fi
 done
 
-echo "Finished putting packages"
+echo -e "${TABS}${GREEN}Finished putting packages${NC}"
 
 if [ -n "$MAKE_BUNDLE" ]; then
-  echo "make bundle(s) and upload them"
+  echo -e "${TABS}${BLUE}make bundle(s) and upload them${NC}"
 
   if [[ ${archs[amd]} == 1 ]]; then
-    echo "Making bundle x86_64"
+    echo -e "${TABS}${BLUE}Making bundle x86_64${NC}"
     TGZ1=manticore_${VER}_amd64.tgz
     (cd build && tar cf - *_all.deb *_amd64.deb *icudata*deb | gzip -9 -f) >$TGZ1
     repo_generator --path "/repository/manticoresearch_$DISTRO$SUFFIX/dists/" --name $TGZ1 --not-index --skip-signing <$TGZ1
   fi
 
   if [[ ${archs[arm]} == 1 ]]; then
-    echo "Making bundle aarch64"
+    echo -e "${TABS}${BLUE}Making bundle aarch64${NC}"
     TGZ2=manticore_${VER}_arm64.tgz
     (cd build && tar cf - *_all.deb *_arm64.deb *icudata*deb | gzip -9 -f) >$TGZ2
     repo_generator --path "/repository/manticoresearch_$DISTRO$SUFFIX/dists/" --name $TGZ2 --not-index --skip-signing <$TGZ2
   fi
 fi
 
-echo "Indexing"
+echo -e "${TABS}${BLUE}Indexing${NC}"
 for arch in "${!archs[@]}"; do
-  echo "Indexing $DISTRO $arch $DESTINATION"
+  echo -e "${TABS}${BLUE}Indexing $DISTRO $arch $DESTINATION${NC}"
   repo_generator --distro "$DISTRO" --architecture "$arch" --target "$DESTINATION" --only-index
 done
 
-echo "Cleanup"
-rm -rf "$BUILD_FOLDER"*deb || echo "Failed to cleanup"
-echo "Cleanup complete"
+echo -e "${TABS}${BLUE}Cleanup${NC}"
+rm -rf "$BUILD_FOLDER"*deb || echo -e "${TABS}${RED}Failed to cleanup${NC}"
+echo -e "${TABS}${GREEN}Cleanup complete${NC}"

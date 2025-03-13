@@ -1,5 +1,13 @@
 #!/usr/bin/env bash
-# That file here is for reference; actually used the one stored on the host to avoid checkout of the whole code
+
+RED='\033[0;31m'    # For errors
+GREEN='\033[0;32m'  # For success
+BLUE='\033[0;34m'   # For info
+NC='\033[0m'        # No Color
+
+# Set indentation level from parent script (remote_script)
+INDENT_LEVEL=${INDENT_LEVEL:-0}
+TABS=$(printf '\t%.0s' $(seq 1 "$INDENT_LEVEL"))
 
 if [ -z "${BUILD_FOLDER+x}" ]; then
   BUILD_FOLDER="build/"
@@ -22,18 +30,27 @@ if [ -z "${DIGIT_FIELD2+x}" ]; then
 fi
 
 repo_generator() {
-  command="stdbuf -oL -eL /usr/bin/docker exec -i repo-generator /generator.sh $@"
-  echo "$command"
+  command="/usr/bin/docker exec -i repo-generator /generator.sh $@"
+  echo -e "${TABS}${BLUE}$command${NC}"
   if [ "$DRY_RUN" = "false" ]; then
-    eval "$command"
-    if [[ ! $? -eq 0 ]]; then echo "ERROR: command failed"; exit 1; fi
+    eval "$command" >temp_out 2>temp_err
+    exit_code=$?
+    cat temp_out | sed "s/^/${TABS}\t/"  # Indent generator.sh output one level deeper
+    if [[ $exit_code -ne 0 ]]; then
+      echo -e "${TABS}${RED}ERROR: command failed with exit code $exit_code${NC}"
+      echo "${TABS}Error output:"
+      cat temp_err | sed "s/^/${TABS}\t/"
+      rm -f temp_out temp_err
+      exit $exit_code
+    fi
+    rm -f temp_out temp_err  # Clean up without showing stderr on success
   fi
 }
 
 get_destination() {
   if [ -z "$TARGET" ]; then
     DESTINATION="dev"
-    echo "DESTINATION=${DESTINATION}"
+    echo -e "${TABS}${BLUE}DESTINATION=${DESTINATION}${NC}"
   else
     if [[ "$TARGET" == "release" ]]; then
       DESTINATION="release_candidate"
@@ -43,13 +60,13 @@ get_destination() {
   fi
 }
 
-echo "Contents of ./$BUILD_FOLDER:"
-find "$BUILD_FOLDER"
+echo -e "${TABS}${BLUE}Contents of ./$BUILD_FOLDER:${NC}"
+find "$BUILD_FOLDER" | sed "s/^/${TABS}/"
 
 for f in `find "$BUILD_FOLDER" -type f \( -name "*.zip" -o -name "*.exe" \) | sort -t- -k2`; do
   packageName="$(basename "$f")"
   if [ -f "$f" ]; then
-    echo "Processing $f"
+    echo -e "${TABS}${BLUE}Processing $f${NC}"
     get_destination
     repo_generator --path "/repository/manticoresearch_windows/$DESTINATION/x64/" --name "$packageName" --target "$DESTINATION" --not-index --skip-signing "<$f"
   fi
@@ -58,11 +75,12 @@ done
 for f in `find "$BUILD_FOLDER" -type f \( -name "*.gz" \) | sort -t- -k2`; do
   packageName="$(basename "$f")"
   if [ -f "$f" ]; then
-    echo "Processing $f"
+    echo -e "${TABS}${BLUE}Processing $f${NC}"
     get_destination
     repo_generator --path "/repository/manticoresearch_macos/$DESTINATION/" --name "$packageName" --target "$DESTINATION" --not-index --skip-signing "<$f"
   fi
 done
 
-echo "Cleanup"
-rm -rf "$BUILD_FOLDER"*.{zip,gz,exe}
+echo -e "${TABS}${BLUE}Cleanup${NC}"
+rm -rf "$BUILD_FOLDER"*.{zip,gz,exe} || echo -e "${TABS}${RED}Failed to cleanup${NC}"
+echo -e "${TABS}${GREEN}Cleanup completed${NC}"
