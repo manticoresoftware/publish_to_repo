@@ -5,7 +5,7 @@ GREEN='\033[0;32m'  # For success
 NC='\033[0m'        # No Color
 
 export INDENT_LEVEL=${INDENT_LEVEL:-0}
-TABS=$(printf '\t%.0s' $(seq 1 "$INDENT_LEVEL"))
+TABS=$(printf '\t%.0s' $(seq 0 "$INDENT_LEVEL"))
 
 echo "${TABS}version #32"
 
