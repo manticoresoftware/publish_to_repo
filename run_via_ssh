@@ -140,8 +140,8 @@ cat <<EOF > "$remote_script"
 TABS='$remote_tabs'
 echo "\${TABS}Starting remote script execution"
 cd "${TEMP_DIR}" || { echo "\${TABS}Failed to cd to ${TEMP_DIR}"; exit 1; }
-echo "\${TABS}Downloading https://raw.githubusercontent.com/manticoresoftware/publish_to_repo/feat/improve-output/upload_repo_${TYPE} to script"
-curl -sSL "https://raw.githubusercontent.com/manticoresoftware/publish_to_repo/feat/improve-output/upload_repo_${TYPE}" > script || { echo "\${TABS}Failed to download upload_repo_${TYPE}"; exit 1; }
+echo "\${TABS}Downloading https://raw.githubusercontent.com/manticoresoftware/publish_to_repo/main/upload_repo_${TYPE} to script"
+curl -sSL "https://raw.githubusercontent.com/manticoresoftware/publish_to_repo/main/upload_repo_${TYPE}" > script || { echo "\${TABS}Failed to download upload_repo_${TYPE}"; exit 1; }
 chmod +x script
 echo "\${TABS}Running upload_repo_${TYPE} script"
 INDENT_LEVEL=${INDENT_LEVEL:-0} DISTRO="${DISTR}" DIGIT_DELIMITER2="${DELIMITER}" TARGET="${TARGET}" DRY_RUN="${DRY_RUN}" ./script
