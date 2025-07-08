@@ -101,11 +101,7 @@ for f in `find "$BUILD_FOLDER" -type f \( -name "*deb" \)`; do
     fi
 
     if [[ $f == *icudata* ]]; then
-      if [[ $PACK_ICUDATA == 1 ]]; then
-        ARCH=all
-      else
-        ARCH=none
-      fi
+      ARCH=all
     fi
 
     if [[ $ARCH == "amd64" ]]; then

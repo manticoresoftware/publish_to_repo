@@ -96,11 +96,7 @@ for f in `find "$BUILD_FOLDER" -type f \( -name "$FILE_MASK" \)`; do
   echo -e "${TABS}${BLUE}Arch: $ARCH${NC}"
 
   if [[ $f == *icudata* ]]; then
-    if [[ $PACK_ICUDATA == 1 ]]; then
-      ARCH=noarch
-    else
-      ARCH=none
-    fi
+    ARCH=noarch
   fi
 
   if [ -f "$f" ]; then
