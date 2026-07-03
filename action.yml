@@ -30,7 +30,7 @@ runs:
   using: "composite"
   steps:
     - name: Download artifact
-      uses: manticoresoftware/download_artifact_with_retries@main
+      uses: manticoresoftware/download_artifact_with_retries@v5
       with:
         name: ${{ inputs.artifact }}
         path: build
